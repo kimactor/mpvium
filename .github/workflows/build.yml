@@ -55,3 +55,10 @@ jobs:
           name: app-standard-release-apks-ci-signed-${{ env.SHORT_SHA }}
           path: app/build/outputs/apk/standard/release/*.apk
           if-no-files-found: warn
+
+      - name: Upload Room schemas
+        uses: actions/upload-artifact@v7
+        with:
+          name: room-schemas-${{ env.SHORT_SHA }}
+          path: app/schemas/
+          if-no-files-found: error
