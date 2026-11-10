@@ -82,7 +82,7 @@ object MoreLibraryScreen : Screen {
         TopAppBar(
           title = {
             Text(
-              text = "Library",
+              text = stringResource(R.string.library_title),
               style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
             )
           },
@@ -110,8 +110,8 @@ object MoreLibraryScreen : Screen {
       ) {
         item {
           LibraryItemCard(
-            title = "Library Insights",
-            subtitle = "Collection stats and watching habits",
+            title = stringResource(R.string.library_insights_title),
+            subtitle = stringResource(R.string.library_insights_subtitle),
             icon = Icons.Filled.Insights,
             onClick = { backstack.add(InsightsScreen) },
           )
@@ -119,8 +119,8 @@ object MoreLibraryScreen : Screen {
 
         item {
           LibraryItemCard(
-            title = "Playback History",
-            subtitle = "Recently played videos and timestamps",
+            title = stringResource(R.string.library_history_title),
+            subtitle = stringResource(R.string.library_history_subtitle),
             icon = Icons.Filled.History,
             onClick = { backstack.add(RecentlyPlayedScreen) },
           )
@@ -128,8 +128,8 @@ object MoreLibraryScreen : Screen {
 
         item {
           LibraryItemCard(
-            title = "Playlists",
-            subtitle = "Custom playlists and M3U streams",
+            title = stringResource(R.string.library_playlists_title),
+            subtitle = stringResource(R.string.library_playlists_subtitle),
             icon = Icons.AutoMirrored.Filled.PlaylistPlay,
             onClick = { backstack.add(PlaylistScreen) },
           )
@@ -164,8 +164,8 @@ object MoreLibraryScreen : Screen {
 
         item {
           LibraryItemCard(
-            title = "Network Streaming",
-            subtitle = "SMB, FTP, WebDAV connections and streams",
+            title = stringResource(R.string.library_network_title),
+            subtitle = stringResource(R.string.library_network_subtitle),
             icon = Icons.Filled.Language,
             onClick = { backstack.add(NetworkStreamingScreen) },
           )
@@ -174,8 +174,8 @@ object MoreLibraryScreen : Screen {
         item {
           Spacer(modifier = Modifier.height(8.dp))
           LibraryItemCard(
-            title = "Settings & Preferences",
-            subtitle = "Appearance, decoder, audio, gestures, and subtitles",
+            title = stringResource(R.string.library_settings_title),
+            subtitle = stringResource(R.string.library_settings_subtitle),
             icon = Icons.Filled.Settings,
             onClick = { backstack.add(PreferencesScreen) },
           )

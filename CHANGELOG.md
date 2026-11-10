@@ -4,6 +4,8 @@
 
 - JAV library foundation: high-confidence release-code detection from filenames and folders, local file-code indexing, and optional separation from the normal Movies/Titles library.
 - JAV library access is gated by a one-time 18+ confirmation.
+- App language setting: follow system, English, or Simplified Chinese. Chinese resources currently cover the JAV, metadata, collections, and Library surfaces; legacy screens fall back to English.
+- Cover prefetch now retries missing metadata/cover URLs, verifies local files, and reports downloaded, failed, missing-URL, and already-cached counts.
 - JAV library screen: browse detected codes, scrape JavBus metadata and covers, play files directly, and configure the JavBus cookie, HTTP/SOCKS proxy, and custom User-Agent from JAV settings.
 - JavDB fallback: use the anonymous JavDB API for FC2, amateur, and date-style codes, with host failover and automatic enrichment when JavBus is unavailable or incomplete.
 - JAV batch tools: scrape all/missing/failed/stale entries, prefetch JAV covers, and monitor or cancel jobs from the JAV batch screen.

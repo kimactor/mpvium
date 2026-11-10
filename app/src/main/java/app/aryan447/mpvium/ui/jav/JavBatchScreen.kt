@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import app.aryan447.mpvium.R
 import app.aryan447.mpvium.domain.jav.JavBatchFilter
@@ -50,6 +51,8 @@ object JavBatchScreen : Screen {
     val prefetchInfos by workManager.getWorkInfosForUniqueWorkFlow(JavBatchScheduler.UNIQUE_PREFETCH)
       .collectAsState(initial = emptyList())
     val active = (scrapeInfos + prefetchInfos).firstOrNull { !it.state.isFinished }
+    val lastScrape = scrapeInfos.lastOrNull()
+    val lastPrefetch = prefetchInfos.lastOrNull()
     var filterName by rememberSaveable { mutableStateOf(JavBatchFilter.MISSING.name) }
     val filter = runCatching { JavBatchFilter.valueOf(filterName) }.getOrDefault(JavBatchFilter.MISSING)
     val labels = mapOf(
@@ -121,6 +124,15 @@ object JavBatchScreen : Screen {
           }
         }
 
+        if (active == null) {
+          lastScrape?.let { info ->
+            item { BatchResultCard(title = stringResource(R.string.jav_batch_start_scrape), info = info, scrape = true) }
+          }
+          lastPrefetch?.let { info ->
+            item { BatchResultCard(title = stringResource(R.string.jav_batch_start_prefetch), info = info, scrape = false) }
+          }
+        }
+
         if (active != null) {
           item {
             PreferenceCard {
@@ -145,18 +157,68 @@ object JavBatchScreen : Screen {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                   )
                 }
-                if (total == 0 && done == 0) {
-                  Text(
-                    text = stringResource(R.string.jav_batch_no_targets),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                  )
-                }
               }
             }
           }
         }
+      }
+    }
+  }
+}
+
+@Composable
+private fun BatchResultCard(
+  title: String,
+  info: WorkInfo,
+  scrape: Boolean,
+) {
+  val message = when (info.state) {
+    WorkInfo.State.SUCCEEDED -> {
+      if (scrape) {
+        stringResource(
+          R.string.jav_batch_scrape_result,
+          info.outputData.getInt(JavBatchScheduler.KEY_SUCCESS, 0),
+          info.outputData.getInt(JavBatchScheduler.KEY_FAILED, 0),
+        )
+      } else {
+        val total = info.outputData.getInt(JavBatchScheduler.KEY_TOTAL, 0)
+        if (total == 0) {
+          when (info.outputData.getString(JavBatchScheduler.KEY_REASON)) {
+            JavBatchScheduler.REASON_ALL_CACHED -> stringResource(R.string.jav_batch_all_cached)
+            JavBatchScheduler.REASON_NO_METADATA -> stringResource(R.string.jav_batch_no_metadata)
+            JavBatchScheduler.REASON_NO_COVER_URL -> stringResource(R.string.jav_batch_no_cover_url)
+            JavBatchScheduler.REASON_NO_ITEMS -> stringResource(R.string.jav_batch_no_items)
+            else -> stringResource(R.string.jav_batch_no_cover_url)
+          }
+        } else {
+          stringResource(
+            R.string.jav_batch_cover_result,
+            info.outputData.getInt(JavBatchScheduler.KEY_SUCCESS, 0),
+            info.outputData.getInt(JavBatchScheduler.KEY_FAILED, 0),
+            info.outputData.getInt(JavBatchScheduler.KEY_NO_COVER, 0),
+            info.outputData.getInt(JavBatchScheduler.KEY_ALREADY_CACHED, 0),
+          )
+        }
+      }
+    }
+    WorkInfo.State.FAILED -> stringResource(
+      R.string.jav_batch_failed,
+      info.outputData.getString(JavBatchScheduler.KEY_ERROR) ?: "",
+    )
+    WorkInfo.State.CANCELLED -> stringResource(R.string.jav_batch_cancelled)
+    else -> null
+  }
+
+  if (message != null) {
+    PreferenceCard {
+      Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Text(title, style = MaterialTheme.typography.titleSmall)
+        Text(
+          text = message,
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.padding(top = 4.dp),
+        )
       }
     }
   }

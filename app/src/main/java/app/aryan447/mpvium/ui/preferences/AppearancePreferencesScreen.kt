@@ -1,5 +1,6 @@
 package app.aryan447.mpvium.ui.preferences
 
+import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material.icons.outlined.Schedule
@@ -45,12 +47,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.aryan447.mpvium.R
+import app.aryan447.mpvium.preferences.AppLanguage
 import app.aryan447.mpvium.preferences.AppearancePreferences
 import app.aryan447.mpvium.preferences.HomeSection
 import app.aryan447.mpvium.preferences.BrowserPreferences
@@ -76,11 +81,18 @@ object AppearancePreferencesScreen : Screen {
     override fun Content() {
         val preferences = koinInject<AppearancePreferences>()
         val browserPreferences = koinInject<BrowserPreferences>()
+        val context = LocalContext.current
         val gesturePreferences = koinInject<GesturePreferences>()
         val systemDarkTheme = isSystemInDarkTheme()
 
         val darkMode by preferences.darkMode.collectAsState()
         val darkModeLabels = DarkMode.entries.associateWith { stringResource(it.titleRes) }
+        val appLanguage by preferences.appLanguage.collectAsState()
+        val languageLabels = mapOf(
+            AppLanguage.SYSTEM to stringResource(R.string.pref_language_system),
+            AppLanguage.ENGLISH to stringResource(R.string.pref_language_english),
+            AppLanguage.CHINESE to stringResource(R.string.pref_language_chinese),
+        )
         val appTheme by preferences.appTheme.collectAsState()
         val haptic = LocalHapticFeedback.current
 
@@ -175,6 +187,25 @@ object AppearancePreferencesScreen : Screen {
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(MaterialTheme.spacing.medium),
+                                )
+                                PreferenceDivider()
+
+                                ExpressiveListPreference(
+                                    value = appLanguage,
+                                    onValueChange = { language ->
+                                        preferences.appLanguage.set(language)
+                                        (context as? Activity)?.recreate()
+                                    },
+                                    values = AppLanguage.entries,
+                                    valueToText = { AnnotatedString(languageLabels.getValue(it)) },
+                                    icon = { PreferenceRowIcon(icon = Icons.Outlined.Language) },
+                                    title = { Text(stringResource(R.string.pref_language_title)) },
+                                    summary = {
+                                        Text(
+                                            languageLabels.getValue(appLanguage),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    },
                                 )
                             }
 

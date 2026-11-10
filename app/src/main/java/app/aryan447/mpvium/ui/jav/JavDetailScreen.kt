@@ -238,6 +238,8 @@ data class JavDetailScreen(
               PreferenceCard {
                 val metadata = current.metadata
                 JavInfoRow(stringResource(R.string.jav_library_status), metadata?.status)
+                JavInfoRow(stringResource(R.string.jav_library_source), metadata?.source)
+                JavInfoRow(stringResource(R.string.jav_library_last_error), metadata?.lastError)
                 JavInfoRow(stringResource(R.string.jav_library_release_date), metadata?.releaseDate)
                 JavInfoRow(
                   stringResource(R.string.jav_library_runtime),

@@ -20,6 +20,15 @@
 >
 > Older entries: see DEVLOG-archive/ (once archiving starts).
 
+## [2026-11-10 17:29] Change #4: Add language selection and repair cover prefetch
+- **Purpose**: Make the app language selectable and fix `Prefetch covers` reporting no targets when scraped metadata lacked a cover URL.
+- **Approach**: Add a persisted `AppLanguage` preference with a context locale wrapper for MainActivity, MediaInfoActivity, and PlayerActivity; add partial `values-zh-rCN` resources for the new JAV/metadata/collections/Library surfaces. Replace the prefetch filter with a repair pass that checks local files, retries scraping when `coverUrl` is missing, downloads covers, and records success/failure counts.
+- **Proposal**: Keep the source chain unchanged; distinguish "already cached", "no scraped metadata", "no cover URL", and download failures in the batch UI instead of a single no-targets message.
+- **Decision**: Implemented language selection plus batch result cards and last-error display. Prefetch now verifies file existence and can re-scrape missing cover URLs before downloading.
+- **Files**: `app/src/main/java/app/aryan447/mpvium/preferences/AppearancePreferences.kt`, `app/src/main/java/app/aryan447/mpvium/utils/locale/LocaleHelper.kt`, `App.kt`, `MainActivity.kt`, `MediaInfoActivity.kt`, `PlayerActivity.kt`, `ui/preferences/AppearancePreferencesScreen.kt`, `ui/jav/JavBatchScreen.kt`, `ui/jav/JavDetailScreen.kt`, `domain/jav/JavBatchWorker.kt`, `domain/jav/JavBatchScheduler.kt`, `ui/streaming/more/MoreLibraryScreen.kt`, `AndroidManifest.xml`, `res/xml/locales_config.xml`, `res/values/strings.xml`, `res/values-zh-rCN/strings.xml`, `CHANGELOG.md`
+- **Risks**: Chinese resources are intentionally partial and legacy screens fall back to English; prefetch can now trigger source requests for items without a cover URL; JavBus/JavDB success still depends on cookie/signature/network.
+- **Verification**: Pending CI compile and artifact build. Static XML parsing, string-reference checks, and `git diff --check` pass locally.
+
 ## [2026-11-10 12:23] Change #3: Add JavDB, WorkManager batches, and TMDb collections
 - **Purpose**: Complete the planned JAV and metadata pipeline through JavDB fallback, background batch jobs, TMDb enrichment, and movie collections.
 - **Approach**: Keep each source behind a client/repository boundary; persist scrape state in Room; use WorkManager for long-running batches; extend the existing metadata cache with optional TMDb fields so old caches remain readable.

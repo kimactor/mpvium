@@ -1,12 +1,14 @@
 package app.aryan447.mpvium
 
 import android.app.Application
+import android.content.Context
 import app.aryan447.mpvium.database.repository.VideoMetadataCacheRepository
 import app.aryan447.mpvium.di.DatabaseModule
 import app.aryan447.mpvium.di.FileManagerModule
 import app.aryan447.mpvium.di.PreferencesModule
 import app.aryan447.mpvium.presentation.crash.CrashActivity
 import app.aryan447.mpvium.presentation.crash.GlobalExceptionHandler
+import app.aryan447.mpvium.utils.locale.LocaleHelper
 import app.aryan447.mpvium.utils.media.MediaLibraryEvents
 import `is`.xyz.mpv.FastThumbnails
 import kotlinx.coroutines.CoroutineScope
@@ -20,6 +22,10 @@ import org.koin.core.annotation.KoinExperimentalAPI
 
 @OptIn(KoinExperimentalAPI::class)
 class App : Application() {
+  override fun attachBaseContext(base: Context) {
+    super.attachBaseContext(LocaleHelper.wrap(base))
+  }
+
   private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
   private val metadataCache: VideoMetadataCacheRepository by inject()
 

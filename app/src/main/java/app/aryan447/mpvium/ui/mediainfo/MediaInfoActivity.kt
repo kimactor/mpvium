@@ -1,5 +1,6 @@
 package app.aryan447.mpvium.ui.mediainfo
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -72,6 +73,7 @@ import app.aryan447.mpvium.ui.theme.glassChrome
 import app.aryan447.mpvium.ui.theme.glassHazeStyle
 import app.aryan447.mpvium.ui.theme.glassSheen
 import app.aryan447.mpvium.ui.theme.rememberGlassHazeState
+import app.aryan447.mpvium.utils.locale.LocaleHelper
 import app.aryan447.mpvium.utils.media.MediaInfoOps
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -80,6 +82,10 @@ import org.koin.android.ext.android.inject
 import java.io.File
 
 class MediaInfoActivity : ComponentActivity() {
+  override fun attachBaseContext(newBase: Context) {
+    super.attachBaseContext(LocaleHelper.wrap(newBase))
+  }
+
   private val appearancePreferences by inject<AppearancePreferences>()
   private val TAG = "MediaInfoActivity"
 

@@ -6,10 +6,17 @@ import app.aryan447.mpvium.preferences.preference.getEnum
 import app.aryan447.mpvium.ui.theme.AppTheme
 import app.aryan447.mpvium.ui.theme.DarkMode
 
+enum class AppLanguage(val tag: String?) {
+  SYSTEM(null),
+  ENGLISH("en"),
+  CHINESE("zh-CN"),
+}
+
 class AppearancePreferences(
   preferenceStore: PreferenceStore,
 ) {
   val darkMode = preferenceStore.getEnum("dark_mode", DarkMode.System)
+  val appLanguage = preferenceStore.getEnum("app_language", AppLanguage.SYSTEM)
   val appTheme = preferenceStore.getEnum("app_theme", AppTheme.Default)
   val amoledMode = preferenceStore.getBoolean("amoled_mode", false)
   val playerFullColors = preferenceStore.getBoolean("full_player_colors", false)

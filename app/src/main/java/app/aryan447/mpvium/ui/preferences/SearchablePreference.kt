@@ -38,6 +38,13 @@ object SearchablePreferences {
                 screen = AppearancePreferencesScreen,
             ))
             add(SearchablePreference(
+                key = "appearance.language",
+                titleRes = R.string.pref_language_title,
+                keywords = listOf("language", "english", "chinese", "locale", "??", "??"),
+                category = "Appearance",
+                screen = AppearancePreferencesScreen,
+            ))
+            add(SearchablePreference(
                 key = "appearance.amoled",
                 titleRes = R.string.pref_appearance_amoled_mode_title,
                 summaryRes = R.string.pref_appearance_amoled_mode_summary,
