@@ -777,6 +777,10 @@
   <string name="jav_library_title">JAV Library</string>
   <string name="jav_library_subtitle">Codes, metadata, and covers</string>
   <string name="jav_library_disabled_title">JAV library is off</string>
+  <string name="jav_age_title">18+ content</string>
+  <string name="jav_age_message">This library contains adult content. Confirm you are 18 or older. Metadata and covers are stored locally, and sources are used for personal use only.</string>
+  <string name="jav_age_confirm">I am 18 or older</string>
+  <string name="jav_age_decline">Go back</string>
   <string name="jav_library_disabled_message">Enable it in JAV settings to scan and scrape your collection.</string>
   <string name="jav_library_empty_title">No JAV codes found</string>
   <string name="jav_library_empty_message">Files with recognizable codes will appear here after a library scan.</string>
