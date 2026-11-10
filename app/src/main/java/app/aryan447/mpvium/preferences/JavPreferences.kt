@@ -14,6 +14,7 @@ class JavPreferences(
 ) {
   val libraryEnabled = preferenceStore.getBoolean("jav_library_enabled", false)
   val hideFromNormalLibrary = preferenceStore.getBoolean("jav_hide_from_normal_library", true)
+  val layoutMode = preferenceStore.getEnum("jav_layout_mode", MediaLayoutMode.LIST)
   val javBusCookie = preferenceStore.getString("jav_bus_cookie", "")
   val javDbEnabled = preferenceStore.getBoolean("jav_db_enabled", true)
   val ageConfirmed = preferenceStore.getBoolean("jav_age_confirmed", false)

@@ -1,5 +1,6 @@
 package app.aryan447.mpvium.ui.jav
 
+import android.content.res.Configuration
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -7,14 +8,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
@@ -24,20 +30,19 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState as collectState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
@@ -45,8 +50,9 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -55,9 +61,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.aryan447.mpvium.R
 import app.aryan447.mpvium.domain.jav.JavLibraryItem
 import app.aryan447.mpvium.preferences.JavPreferences
+import app.aryan447.mpvium.preferences.MediaLayoutMode
 import app.aryan447.mpvium.preferences.preference.collectAsState
 import app.aryan447.mpvium.presentation.Screen
 import app.aryan447.mpvium.ui.browser.LocalNavigationBarHeight
+import app.aryan447.mpvium.ui.browser.components.MediaLayoutToggle
 import app.aryan447.mpvium.ui.browser.states.EmptyState
 import app.aryan447.mpvium.ui.browser.states.LoadingState
 import app.aryan447.mpvium.ui.preferences.SettingsTopBar
@@ -75,10 +83,17 @@ object JavLibraryScreen : Screen {
     val backstack = LocalBackStack.current
     val preferences = koinInject<JavPreferences>()
     val libraryEnabled by preferences.libraryEnabled.collectAsState()
+    val layoutMode by preferences.layoutMode.collectAsState()
     val navigationBarHeight = LocalNavigationBarHeight.current
     val configuration = LocalConfiguration.current
     val isTablet = configuration.smallestScreenWidthDp >= 600
-    val columns = if (isTablet) 4 else 3
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val gridColumns = when {
+      isTablet -> if (isLandscape) 5 else 4
+      isLandscape -> 3
+      else -> 2
+    }
+    val coverWidth = if (isTablet) 128.dp else 96.dp
     val vm: JavLibraryViewModel = viewModel(factory = JavLibraryViewModel.factory(context.applicationContext as android.app.Application))
     val state by vm.uiState.collectState()
     var showAgeGate by remember { mutableStateOf(!preferences.ageConfirmed.get()) }
@@ -133,6 +148,13 @@ object JavLibraryScreen : Screen {
         SettingsTopBar(
           title = stringResource(R.string.jav_library_title),
           actions = {
+            MediaLayoutToggle(
+              mode = layoutMode,
+              onToggle = {
+                val next = if (layoutMode == MediaLayoutMode.GRID) MediaLayoutMode.LIST else MediaLayoutMode.GRID
+                preferences.layoutMode.set(next)
+              },
+            )
             IconButton(onClick = { backstack.add(JavBatchScreen) }) {
               Icon(Icons.Filled.Download, contentDescription = stringResource(R.string.jav_batch_title))
             }
@@ -171,8 +193,33 @@ object JavLibraryScreen : Screen {
             .fillMaxSize()
             .padding(padding),
         )
+        layoutMode == MediaLayoutMode.LIST -> LazyColumn(
+          modifier = Modifier
+            .fillMaxSize()
+            .padding(padding),
+          contentPadding = PaddingValues(
+            start = 16.dp,
+            end = 16.dp,
+            top = 12.dp,
+            bottom = navigationBarHeight + 24.dp,
+          ),
+          verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+          state.error?.let { error ->
+            item(key = "error") {
+              JavErrorText(error)
+            }
+          }
+          items(state.items, key = { it.file.path }) { item ->
+            JavListRow(
+              item = item,
+              coverWidth = coverWidth,
+              onClick = { backstack.add(JavDetailScreen(item.code)) },
+            )
+          }
+        }
         else -> LazyVerticalGrid(
-          columns = GridCells.Fixed(columns),
+          columns = GridCells.Fixed(gridColumns),
           modifier = Modifier
             .fillMaxSize()
             .padding(padding),
@@ -187,16 +234,11 @@ object JavLibraryScreen : Screen {
         ) {
           state.error?.let { error ->
             item(span = { GridItemSpan(maxLineSpan) }) {
-              Text(
-                text = error,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(bottom = 4.dp),
-              )
+              JavErrorText(error)
             }
           }
           items(state.items, key = { it.file.path }) { item ->
-            JavPosterCard(
+            JavGridCard(
               item = item,
               onClick = { backstack.add(JavDetailScreen(item.code)) },
             )
@@ -207,9 +249,110 @@ object JavLibraryScreen : Screen {
   }
 }
 
+@Composable
+private fun JavErrorText(error: String) {
+  Text(
+    text = error,
+    style = MaterialTheme.typography.bodySmall,
+    color = MaterialTheme.colorScheme.error,
+    modifier = Modifier.padding(bottom = 4.dp),
+  )
+}
+
+@Composable
+private fun JavPoster(
+  item: JavLibraryItem,
+  modifier: Modifier = Modifier,
+) {
+  Box(
+    modifier = modifier
+      .clip(RoundedCornerShape(14.dp))
+      .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+  ) {
+    StreamingImage(
+      url = item.coverUrl,
+      fallbackVideo = item.video,
+      isSeries = false,
+      contentScale = ContentScale.Crop,
+      modifier = Modifier.fillMaxSize(),
+    )
+  }
+}
+
+@Composable
+private fun JavInfoColumn(
+  item: JavLibraryItem,
+  titleStyle: TextStyle,
+  modifier: Modifier = Modifier,
+) {
+  val actresses = item.actresses.joinToString(" / ")
+  Column(
+    modifier = modifier,
+    verticalArrangement = Arrangement.spacedBy(4.dp),
+  ) {
+    Text(
+      text = item.title,
+      style = titleStyle,
+      color = MaterialTheme.colorScheme.onSurface,
+    )
+    if (!item.title.equals(item.code, ignoreCase = true)) {
+      Text(
+        text = item.code,
+        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+        color = MaterialTheme.colorScheme.primary,
+      )
+    }
+    if (actresses.isNotBlank()) {
+      Text(
+        text = stringResource(R.string.jav_library_actress_line, actresses),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+  }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun JavPosterCard(
+private fun JavListRow(
+  item: JavLibraryItem,
+  coverWidth: Dp,
+  onClick: () -> Unit,
+) {
+  val haptic = LocalHapticFeedback.current
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .clip(RoundedCornerShape(14.dp))
+      .combinedClickable(
+        onClick = {
+          haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+          onClick()
+        },
+      )
+      .padding(horizontal = 4.dp, vertical = 6.dp),
+    verticalAlignment = Alignment.Top,
+  ) {
+    JavPoster(
+      item = item,
+      modifier = Modifier
+        .width(coverWidth)
+        .aspectRatio(2f / 3f),
+    )
+    Spacer(modifier = Modifier.width(12.dp))
+    JavInfoColumn(
+      item = item,
+      titleStyle = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+      modifier = Modifier
+        .weight(1f)
+        .padding(vertical = 2.dp),
+    )
+  }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun JavGridCard(
   item: JavLibraryItem,
   onClick: () -> Unit,
 ) {
@@ -225,57 +368,16 @@ private fun JavPosterCard(
         },
       ),
   ) {
-    Box(
+    JavPoster(
+      item = item,
       modifier = Modifier
         .fillMaxWidth()
-        .aspectRatio(2f / 3f)
-        .clip(RoundedCornerShape(14.dp))
-        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-    ) {
-      StreamingImage(
-        url = item.coverUrl,
-        fallbackVideo = item.video,
-        isSeries = false,
-        contentScale = ContentScale.Crop,
-        modifier = Modifier.fillMaxSize(),
-      )
-      Box(
-        modifier = Modifier
-          .fillMaxSize()
-          .background(
-            Brush.verticalGradient(
-              0.62f to Color.Transparent,
-              1f to Color.Black.copy(alpha = 0.78f),
-            ),
-          ),
-      )
-      Text(
-        text = item.code,
-        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-        color = Color.White,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        modifier = Modifier
-          .align(Alignment.BottomStart)
-          .padding(8.dp),
-      )
-    }
-    Text(
-      text = item.title,
-      style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-      maxLines = 2,
-      overflow = TextOverflow.Ellipsis,
+        .aspectRatio(2f / 3f),
+    )
+    JavInfoColumn(
+      item = item,
+      titleStyle = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
       modifier = Modifier.padding(top = 6.dp, start = 2.dp, end = 2.dp),
     )
-    if (item.subtitle.isNotBlank()) {
-      Text(
-        text = item.subtitle,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.padding(start = 2.dp, end = 2.dp),
-      )
-    }
   }
 }

@@ -55,6 +55,7 @@
   <string name="jav_library_series">系列</string>
   <string name="jav_library_director">导演</string>
   <string name="jav_library_actresses">女优</string>
+  <string name="jav_library_actress_line">女优：%1$s</string>
   <string name="jav_library_genres">类型</string>
   <string name="jav_library_not_found_title">未找到 JAV 条目</string>
   <string name="jav_library_not_found_message">文件可能已被删除，或番号已变化。</string>

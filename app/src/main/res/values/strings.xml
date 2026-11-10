@@ -840,6 +840,7 @@
   <string name="jav_library_series">Series</string>
   <string name="jav_library_director">Director</string>
   <string name="jav_library_actresses">Actresses</string>
+  <string name="jav_library_actress_line">Actresses: %1$s</string>
   <string name="jav_library_genres">Genres</string>
   <string name="jav_library_settings_title">JAV Settings</string>
   <string name="jav_library_section_library">Library</string>

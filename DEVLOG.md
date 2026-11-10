@@ -20,6 +20,16 @@
 >
 > Older entries: see DEVLOG-archive/ (once archiving starts).
 
+## [2026-11-10 20:23] Change #5: Rework JAV library card layout
+- **Purpose**: The JAV library forced three poster columns, the code was drawn over the cover, and long titles were truncated, so covers and metadata were hard to read.
+- **Approach**: Considered 2-column grid only, 1-column list only, and a persisted grid/list toggle. User chose the top-bar toggle with a list default and asked that each item show the complete title, code, and actresses without overlapping text.
+- **Proposal**: Default to a single-column list (large cover left, untruncated text right), keep an optional grid with 2 phone / 3 landscape / 4-5 tablet columns, and move all text below the cover.
+- **Decision**: Defaulted the library to a persisted LIST layout, added a top-bar `MediaLayoutToggle`, and rebuilt both modes around a shared poster and info column. List rows use a 96 dp (phone) / 128 dp (tablet) 2:3 poster with a full-width title, code, and actress block; the grid now uses 2 phone / 3 landscape / 4-5 tablet columns and keeps all text below the artwork. The code line is hidden when the title already equals the code.
+- **Files**: `app/src/main/java/app/aryan447/mpvium/preferences/JavPreferences.kt`, `app/src/main/java/app/aryan447/mpvium/ui/jav/JavLibraryScreen.kt`, `app/src/main/res/values/strings.xml`, `app/src/main/res/values-zh-rCN/strings.xml`, `CHANGELOG.md`
+- **Risks**: Long Japanese titles and large actress lists make list rows tall; grid rows with full text can become uneven. Layout preference defaults to list for existing users.
+- **Verification**: `git diff --check` reports only the expected LF/CRLF warning. Both `strings.xml` files parse as valid UTF-8 XML. Brace and parenthesis balance checked on the screen file. Local build was impossible (no JDK, Android SDK, or Gradle wrapper distribution), so commit `fac9d6b` was pushed on `codex/20261110-jav-library-list` and PR #1 triggered CI Build run 42815798845, which passed in 4m11s and produced `app-standard-release-apks-ci-signed-ef17eb6`. The downloaded universal APK (100,939,900 bytes, SHA-256 `D3253B3A8D7D490EBE023B2A54A464A579D4C9E947F8792776D75DA1A5EBE671`) passed a ZIP/manifest/dex check and is at `dist-apk/app-standard-release.apk`. No device/emulator visual check was run.
+- **Lesson**: PowerShell 5.1 `Get-Content` decoded the UTF-8 `strings.xml` as ANSI and produced false XML parse errors; use `.NET UTF8.GetString(ReadAllBytes(...))` for XML checks on this machine.
+
 ## [2026-11-10 17:29] Change #4: Add language selection and repair cover prefetch
 - **Purpose**: Make the app language selectable and fix `Prefetch covers` reporting no targets when scraped metadata lacked a cover URL.
 - **Approach**: Add a persisted `AppLanguage` preference with a context locale wrapper for MainActivity, MediaInfoActivity, and PlayerActivity; add partial `values-zh-rCN` resources for the new JAV/metadata/collections/Library surfaces. Replace the prefetch filter with a repair pass that checks local files, retries scraping when `coverUrl` is missing, downloads covers, and records success/failure counts.
