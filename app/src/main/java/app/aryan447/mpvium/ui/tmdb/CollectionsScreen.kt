@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -122,7 +124,7 @@ object CollectionsScreen : Screen {
             .padding(padding),
         )
         groups.isEmpty() -> EmptyState(
-          icon = androidx.compose.material.icons.Icons.Filled.Collections,
+          icon = Icons.Filled.Collections,
           title = stringResource(R.string.collections_empty_title),
           message = stringResource(R.string.collections_empty_message),
           actionLabel = stringResource(R.string.metadata_title),
@@ -260,7 +262,7 @@ data class CollectionDetailScreen(
 
         if (rows.isEmpty()) {
           EmptyState(
-            icon = androidx.compose.material.icons.Icons.Filled.Collections,
+            icon = Icons.Filled.Collections,
             title = stringResource(R.string.collections_not_found),
             message = stringResource(R.string.collections_empty_message),
             modifier = Modifier
