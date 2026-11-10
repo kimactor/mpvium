@@ -7,6 +7,7 @@ import app.aryan447.mpvium.domain.streaming.model.LocalMovie
 import app.aryan447.mpvium.domain.streaming.model.LocalSeries
 import app.aryan447.mpvium.repository.wyzie.WyzieMediaMatcher
 import app.aryan447.mpvium.repository.wyzie.WyzieSearchRepository
+import app.aryan447.mpvium.domain.tmdb.TmdbClient
 import app.aryan447.mpvium.repository.wyzie.WyzieTmdbResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -49,6 +50,12 @@ data class CachedMediaMetadata(
   val customTitle: String? = null,
   val customYear: String? = null,
   val customPosterPath: String? = null,
+  val cast: List<String> = emptyList(),
+  val studios: List<String> = emptyList(),
+  val collectionId: Int? = null,
+  val collectionName: String? = null,
+  val collectionPosterUrl: String? = null,
+  val collectionBackdropUrl: String? = null,
 ) {
   val hasCustomOverrides: Boolean
     get() = !customTitle.isNullOrBlank() || !customYear.isNullOrBlank() || !customPosterPath.isNullOrBlank()
@@ -63,6 +70,7 @@ class StreamingMetadataRepository(
   private val json: Json,
   private val wyzieRepository: WyzieSearchRepository,
   private val artworkStore: StreamingArtworkStore,
+  private val tmdbClient: TmdbClient,
 ) {
   companion object {
     private const val TAG = "StreamingMetadataRepo"
@@ -560,24 +568,38 @@ class StreamingMetadataRepository(
         }
 
         if (match != null) {
-          val poster = match.poster?.let { formatImageUrl(it, posterBase) }
-          val backdrop = match.backdrop?.let { formatImageUrl(it, backdropBase) }
-          val overview = match.overview
-          val year = match.releaseYear ?: rawMovieYear
-          val rating = if (manualOverride) null else extractRatingFromTmdb(match.id, isTv = false)
+          val details = tmdbClient.movieDetails(match.id)
+          val poster = details?.posterPath?.let { formatImageUrl(it, posterBase) }
+            ?: match.poster?.let { formatImageUrl(it, posterBase) }
+          val backdrop = details?.backdropPath?.let { formatImageUrl(it, backdropBase) }
+            ?: match.backdrop?.let { formatImageUrl(it, backdropBase) }
+          val overview = details?.overview ?: match.overview
+          val year = details?.releaseDate?.take(4)?.takeIf { it.length == 4 }
+            ?: match.releaseYear
+            ?: rawMovieYear
+          val rating = details?.rating
+            ?: if (manualOverride) null else extractRatingFromTmdb(match.id, isTv = false)
+          val collection = details?.collection
 
           val cachedMetadata = CachedMediaMetadata(
             tmdbId = match.id,
-            title = match.title.ifBlank { rawMovieTitle },
+            title = details?.title?.takeIf { it.isNotBlank() } ?: match.title.ifBlank { rawMovieTitle },
             posterUrl = poster,
             backdropUrl = backdrop,
             rating = rating,
             overview = overview,
+            genres = details?.genres.orEmpty(),
             year = year,
             manuallySelected = manualOverride,
             customTitle = cached?.customTitle,
             customYear = cached?.customYear,
             customPosterPath = cached?.customPosterPath,
+            cast = details?.cast.orEmpty(),
+            studios = details?.studios.orEmpty(),
+            collectionId = collection?.id,
+            collectionName = collection?.name,
+            collectionPosterUrl = collection?.posterPath?.let { formatImageUrl(it, posterBase) },
+            collectionBackdropUrl = collection?.backdropPath?.let { formatImageUrl(it, backdropBase) },
           )
 
           val mergedMetadata = if (manualOverride) {
@@ -759,6 +781,12 @@ class StreamingMetadataRepository(
       tmdbId = metadata.tmdbId ?: movie.tmdbId,
       originalTitle = origTitle,
       originalYear = origYear,
+      cast = metadata.cast,
+      studios = metadata.studios,
+      collectionId = metadata.collectionId ?: movie.collectionId,
+      collectionName = metadata.collectionName ?: movie.collectionName,
+      collectionPosterUrl = metadata.collectionPosterUrl ?: movie.collectionPosterUrl,
+      collectionBackdropUrl = metadata.collectionBackdropUrl ?: movie.collectionBackdropUrl,
     )
   }
 

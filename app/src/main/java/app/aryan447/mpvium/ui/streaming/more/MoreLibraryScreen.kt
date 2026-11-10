@@ -19,10 +19,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -43,12 +46,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import app.aryan447.mpvium.R
 import app.aryan447.mpvium.presentation.Screen
 import app.aryan447.mpvium.ui.browser.LocalNavigationBarHeight
 import app.aryan447.mpvium.ui.browser.networkstreaming.NetworkStreamingScreen
 import app.aryan447.mpvium.ui.browser.playlist.PlaylistScreen
+import app.aryan447.mpvium.ui.jav.JavLibraryScreen
+import app.aryan447.mpvium.ui.tmdb.CollectionsScreen
+import app.aryan447.mpvium.ui.tmdb.MetadataSettingsScreen
 import app.aryan447.mpvium.ui.browser.recentlyplayed.RecentlyPlayedScreen
 import app.aryan447.mpvium.ui.library.insights.InsightsScreen
 import app.aryan447.mpvium.ui.preferences.PreferencesScreen
@@ -74,7 +82,7 @@ object MoreLibraryScreen : Screen {
         TopAppBar(
           title = {
             Text(
-              text = "Library",
+              text = stringResource(R.string.library_title),
               style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
             )
           },
@@ -102,8 +110,8 @@ object MoreLibraryScreen : Screen {
       ) {
         item {
           LibraryItemCard(
-            title = "Library Insights",
-            subtitle = "Collection stats and watching habits",
+            title = stringResource(R.string.library_insights_title),
+            subtitle = stringResource(R.string.library_insights_subtitle),
             icon = Icons.Filled.Insights,
             onClick = { backstack.add(InsightsScreen) },
           )
@@ -111,8 +119,8 @@ object MoreLibraryScreen : Screen {
 
         item {
           LibraryItemCard(
-            title = "Playback History",
-            subtitle = "Recently played videos and timestamps",
+            title = stringResource(R.string.library_history_title),
+            subtitle = stringResource(R.string.library_history_subtitle),
             icon = Icons.Filled.History,
             onClick = { backstack.add(RecentlyPlayedScreen) },
           )
@@ -120,8 +128,8 @@ object MoreLibraryScreen : Screen {
 
         item {
           LibraryItemCard(
-            title = "Playlists",
-            subtitle = "Custom playlists and M3U streams",
+            title = stringResource(R.string.library_playlists_title),
+            subtitle = stringResource(R.string.library_playlists_subtitle),
             icon = Icons.AutoMirrored.Filled.PlaylistPlay,
             onClick = { backstack.add(PlaylistScreen) },
           )
@@ -129,8 +137,35 @@ object MoreLibraryScreen : Screen {
 
         item {
           LibraryItemCard(
-            title = "Network Streaming",
-            subtitle = "SMB, FTP, WebDAV connections and streams",
+            title = stringResource(R.string.jav_library_title),
+            subtitle = stringResource(R.string.jav_library_subtitle),
+            icon = Icons.Filled.Movie,
+            onClick = { backstack.add(JavLibraryScreen) },
+          )
+        }
+
+        item {
+          LibraryItemCard(
+            title = stringResource(R.string.collections_title),
+            subtitle = stringResource(R.string.collections_subtitle),
+            icon = Icons.Filled.Collections,
+            onClick = { backstack.add(CollectionsScreen) },
+          )
+        }
+
+        item {
+          LibraryItemCard(
+            title = stringResource(R.string.metadata_title),
+            subtitle = stringResource(R.string.metadata_subtitle),
+            icon = Icons.Filled.Tune,
+            onClick = { backstack.add(MetadataSettingsScreen) },
+          )
+        }
+
+        item {
+          LibraryItemCard(
+            title = stringResource(R.string.library_network_title),
+            subtitle = stringResource(R.string.library_network_subtitle),
             icon = Icons.Filled.Language,
             onClick = { backstack.add(NetworkStreamingScreen) },
           )
@@ -139,8 +174,8 @@ object MoreLibraryScreen : Screen {
         item {
           Spacer(modifier = Modifier.height(8.dp))
           LibraryItemCard(
-            title = "Settings & Preferences",
-            subtitle = "Appearance, decoder, audio, gestures, and subtitles",
+            title = stringResource(R.string.library_settings_title),
+            subtitle = stringResource(R.string.library_settings_subtitle),
             icon = Icons.Filled.Settings,
             onClick = { backstack.add(PreferencesScreen) },
           )

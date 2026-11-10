@@ -1,5 +1,6 @@
 package app.aryan447.mpvium
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -41,6 +42,7 @@ import app.aryan447.mpvium.preferences.AppearancePreferences
 import app.aryan447.mpvium.preferences.preference.collectAsState
 import app.aryan447.mpvium.presentation.Screen
 import app.aryan447.mpvium.repository.NetworkRepository
+import app.aryan447.mpvium.utils.locale.LocaleHelper
 import app.aryan447.mpvium.utils.update.UpdateDialog
 import app.aryan447.mpvium.utils.update.UpdateViewModel
 import app.aryan447.mpvium.ui.browser.MainScreen
@@ -63,6 +65,10 @@ import org.koin.android.ext.android.inject
  * Main entry point for the application
  */
 class MainActivity : ComponentActivity() {
+  override fun attachBaseContext(newBase: Context) {
+    super.attachBaseContext(LocaleHelper.wrap(newBase))
+  }
+
   private val appearancePreferences by inject<AppearancePreferences>()
   private val networkRepository by inject<NetworkRepository>()
 

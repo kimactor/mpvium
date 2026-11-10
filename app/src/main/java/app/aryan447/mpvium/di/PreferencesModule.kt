@@ -8,9 +8,11 @@ import app.aryan447.mpvium.preferences.BrowserPreferences
 import app.aryan447.mpvium.preferences.DecoderPreferences
 import app.aryan447.mpvium.preferences.FoldersPreferences
 import app.aryan447.mpvium.preferences.GesturePreferences
+import app.aryan447.mpvium.preferences.JavPreferences
 import app.aryan447.mpvium.preferences.PlayerPreferences
 import app.aryan447.mpvium.preferences.SettingsManager
 import app.aryan447.mpvium.preferences.StreamingPreferences
+import app.aryan447.mpvium.preferences.TmdbPreferences
 import app.aryan447.mpvium.preferences.SubtitlesPreferences
 import app.aryan447.mpvium.preferences.preference.AndroidPreferenceStore
 import app.aryan447.mpvium.preferences.preference.PreferenceStore
@@ -32,6 +34,8 @@ val PreferencesModule =
     singleOf(::AdvancedPreferences)
     single { BrowserPreferences(get(), androidContext()) }
     singleOf(::FoldersPreferences)
+    singleOf(::JavPreferences)
     singleOf(::StreamingPreferences)
+    singleOf(::TmdbPreferences)
     singleOf(::SettingsManager)
   }

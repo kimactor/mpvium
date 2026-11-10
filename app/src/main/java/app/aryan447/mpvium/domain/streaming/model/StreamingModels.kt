@@ -70,6 +70,12 @@ data class LocalMovie(
   val progressPercentage: Float = 0f,
   val originalTitle: String? = null,
   val originalYear: String? = null,
+  val cast: List<String> = emptyList(),
+  val studios: List<String> = emptyList(),
+  val collectionId: Int? = null,
+  val collectionName: String? = null,
+  val collectionPosterUrl: String? = null,
+  val collectionBackdropUrl: String? = null,
 )
 
 /**

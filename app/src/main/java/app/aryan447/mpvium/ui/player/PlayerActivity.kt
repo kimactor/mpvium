@@ -56,6 +56,7 @@ import app.aryan447.mpvium.ui.player.controls.PlayerControls
 import app.aryan447.mpvium.ui.theme.MpviumTheme
 import app.aryan447.mpvium.ui.widget.ContinueWatchingWidgetProvider
 import app.aryan447.mpvium.utils.history.RecentlyPlayedOps
+import app.aryan447.mpvium.utils.locale.LocaleHelper
 import app.aryan447.mpvium.utils.media.HttpUtils
 import app.aryan447.mpvium.utils.media.MediaLibraryEvents
 import app.aryan447.mpvium.utils.media.SubtitleOps
@@ -503,13 +504,14 @@ class PlayerActivity :
       return
     }
 
-    val originalConfiguration = newBase.resources.configuration
+    val localizedBase = LocaleHelper.wrap(newBase)
+    val originalConfiguration = localizedBase.resources.configuration
     val contextToUse =
       if (originalConfiguration.fontScale == 1f) {
-        newBase
+        localizedBase
       } else {
         val updatedConfiguration = Configuration(originalConfiguration).apply { fontScale = 1f }
-        val configurationContext = newBase.createConfigurationContext(updatedConfiguration)
+        val configurationContext = localizedBase.createConfigurationContext(updatedConfiguration)
         val configurationDisplayMetrics = configurationContext.resources.displayMetrics
         configurationDisplayMetrics.scaledDensity = updatedConfiguration.fontScale * configurationDisplayMetrics.density
         configurationContext

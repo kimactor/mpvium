@@ -195,6 +195,43 @@ class StreamingArtworkStore(
       stream.use { storeCustomArtwork(it, keyHint) }
     }
 
+  /**
+   * Downloads remote artwork with source-specific headers and stores it under a
+   * deterministic JAV cache name. The returned absolute path can be passed
+   * straight to [loadImage].
+   */
+  suspend fun downloadToLocal(
+    url: String,
+    headers: Map<String, String> = emptyMap(),
+    keyHint: String = url,
+  ): String? = withContext(Dispatchers.IO) {
+    if (url.isBlank()) return@withContext null
+    if (url.startsWith("/")) return@withContext url.takeIf { File(it).isFile }
+    if (url.startsWith("file://")) {
+      return@withContext url.removePrefix("file://").takeIf { File(it).isFile }
+    }
+
+    try {
+      val request = Request.Builder()
+        .url(url)
+        .apply { headers.forEach { (name, value) -> header(name, value) } }
+        .build()
+      client.newCall(request).execute().use { response ->
+        if (!response.isSuccessful) return@withContext null
+        val bytes = response.body.bytes()
+        if (bytes.isEmpty()) return@withContext null
+        if (decodeSampledBytes(bytes, DEFAULT_MAX_DIMENSION) == null) return@withContext null
+
+        val target = File(diskDir, "jav_${hash(keyHint)}.$DISK_FILE_EXTENSION")
+        writeAtomically(target, bytes)
+        target.absolutePath
+      }
+    } catch (e: Exception) {
+      Log.w(TAG, "Error downloading artwork from $url: ${e.message}")
+      null
+    }
+  }
+
   private fun removeFromMemory(url: String) {
     val keys = memoryCache.snapshot().keys.filter { it.startsWith("$url|") }
     keys.forEach { memoryCache.remove(it) }
@@ -257,8 +294,10 @@ class StreamingArtworkStore(
     return bitmap
   }
 
-  private fun writeAtomically(url: String, bytes: ByteArray) {
-    val target = diskFile(url)
+  private fun writeAtomically(url: String, bytes: ByteArray) =
+    writeAtomically(diskFile(url), bytes)
+
+  private fun writeAtomically(target: File, bytes: ByteArray) {
     val temp = File(diskDir, "${target.name}.tmp")
     runCatching {
       FileOutputStream(temp).use { out ->
@@ -277,7 +316,7 @@ class StreamingArtworkStore(
         Files.move(temp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
       }
     }.onFailure {
-      Log.w(TAG, "Failed to store artwork for $url: ${it.message}")
+      Log.w(TAG, "Failed to store artwork for ${target.name}: ${it.message}")
       runCatching { temp.delete() }
     }
   }

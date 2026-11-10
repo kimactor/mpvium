@@ -546,6 +546,73 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
 }
 
 
+/**
+ * Migration from version 10 to version 11
+ *
+ * Changes:
+ * - Adds jav_items for scraped JAV metadata
+ * - Adds jav_files for file-to-code mappings
+ */
+val MIGRATION_10_11 = object : Migration(10, 11) {
+  override fun migrate(db: SupportSQLiteDatabase) {
+    db.execSQL(
+      """
+      CREATE TABLE IF NOT EXISTS `jav_items` (
+        `code` TEXT NOT NULL,
+        `title` TEXT NOT NULL,
+        `originalTitle` TEXT,
+        `overview` TEXT,
+        `releaseDate` TEXT,
+        `runtimeMinutes` INTEGER,
+        `studio` TEXT,
+        `label` TEXT,
+        `series` TEXT,
+        `director` TEXT,
+        `genresJson` TEXT,
+        `actressesJson` TEXT,
+        `coverUrl` TEXT,
+        `localCoverPath` TEXT,
+        `source` TEXT,
+        `sourceUrl` TEXT,
+        `sourceId` TEXT,
+        `status` TEXT NOT NULL,
+        `lastError` TEXT,
+        `nextRetryAt` INTEGER,
+        `fetchedAt` INTEGER,
+        `updatedAt` INTEGER NOT NULL,
+        `manuallyEdited` INTEGER NOT NULL,
+        `manualTitle` TEXT,
+        `manualCoverPath` TEXT,
+        PRIMARY KEY(`code`)
+      )
+      """.trimIndent(),
+    )
+    db.execSQL("CREATE INDEX IF NOT EXISTS `index_jav_items_status` ON `jav_items` (`status`)")
+    db.execSQL("CREATE INDEX IF NOT EXISTS `index_jav_items_updatedAt` ON `jav_items` (`updatedAt`)")
+
+    db.execSQL(
+      """
+      CREATE TABLE IF NOT EXISTS `jav_files` (
+        `path` TEXT NOT NULL,
+        `code` TEXT NOT NULL,
+        `rawCode` TEXT,
+        `kind` TEXT NOT NULL,
+        `confidence` REAL NOT NULL,
+        `matchType` TEXT NOT NULL,
+        `displayName` TEXT NOT NULL,
+        `size` INTEGER NOT NULL,
+        `mtimeMs` INTEGER NOT NULL,
+        `lastSeenAt` INTEGER NOT NULL,
+        PRIMARY KEY(`path`)
+      )
+      """.trimIndent(),
+    )
+    db.execSQL("CREATE INDEX IF NOT EXISTS `index_jav_files_code` ON `jav_files` (`code`)")
+    db.execSQL("CREATE INDEX IF NOT EXISTS `index_jav_files_matchType` ON `jav_files` (`matchType`)")
+    db.execSQL("CREATE INDEX IF NOT EXISTS `index_jav_files_lastSeenAt` ON `jav_files` (`lastSeenAt`)")
+  }
+}
+
 val DatabaseModule =
   module {
     single<Json> {
@@ -560,10 +627,12 @@ val DatabaseModule =
       Room
         .databaseBuilder(context, MpviumDatabase::class.java, "mpvium.db")
         .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
         .fallbackToDestructiveMigration(true) // Fallback if migration fails (last resort)
         .build()
     }
+
+    single { get<MpviumDatabase>().javDao() }
 
     singleOf(::PlaybackStateRepositoryImpl).bind(PlaybackStateRepository::class)
 
