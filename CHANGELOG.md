@@ -51,6 +51,7 @@
 - External subtitle tracks added from online search now show a friendly label (language · quality · source · group) in the subtitle list.
 - Improved seeking performance: added adaptive precision (exact for short skips, keyframes for large jumps) to avoid decoder freezes on heavy media.
 - Fixed seekbar thumb snapping backward on gesture release when keyframe seeking is active.
+- JAV library: added a persisted grid/list toggle in the top bar and defaulted to a single-column list with a larger poster; title, code, and actresses are now shown below the cover in full instead of being truncated or drawn over the artwork.
 
 ### Fixed
 
