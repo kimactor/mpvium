@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -102,6 +103,9 @@ object JavLibraryScreen : Screen {
         SettingsTopBar(
           title = stringResource(R.string.jav_library_title),
           actions = {
+            IconButton(onClick = { backstack.add(JavBatchScreen) }) {
+              Icon(Icons.Filled.Download, contentDescription = stringResource(R.string.jav_batch_title))
+            }
             IconButton(onClick = { backstack.add(JavSettingsScreen) }) {
               Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.jav_library_settings_title))
             }

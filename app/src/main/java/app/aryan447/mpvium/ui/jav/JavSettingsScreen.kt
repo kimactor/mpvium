@@ -128,6 +128,20 @@ object JavSettingsScreen : Screen {
                   )
                 },
               )
+              PreferenceDivider()
+              val javDbEnabled by preferences.javDbEnabled.collectAsState()
+              HapticSwitchPreference(
+                value = javDbEnabled,
+                onValueChange = { preferences.javDbEnabled.set(it) },
+                icon = { PreferenceRowIcon(icon = Icons.Outlined.Language) },
+                title = { Text(stringResource(R.string.jav_library_javdb_title)) },
+                summary = {
+                  Text(
+                    stringResource(R.string.jav_library_javdb_summary),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                },
+              )
             }
           }
 

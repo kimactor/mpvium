@@ -3,6 +3,8 @@ package app.aryan447.mpvium.ui.preferences
 import androidx.annotation.StringRes
 import app.aryan447.mpvium.R
 import app.aryan447.mpvium.ui.jav.JavSettingsScreen
+import app.aryan447.mpvium.ui.tmdb.CollectionsScreen
+import app.aryan447.mpvium.ui.tmdb.MetadataSettingsScreen
 import app.aryan447.mpvium.presentation.Screen
 
 /**
@@ -877,12 +879,38 @@ object SearchablePreferences {
                 screen = JavSettingsScreen,
             ))
             add(SearchablePreference(
+                key = "jav.javdb",
+                titleRes = R.string.jav_library_javdb_title,
+                summaryRes = R.string.jav_library_javdb_summary,
+                keywords = listOf("javdb", "fallback", "metadata", "api", "source"),
+                category = "Library",
+                screen = JavSettingsScreen,
+            ))
+            add(SearchablePreference(
                 key = "jav.proxy",
                 titleRes = R.string.jav_library_proxy_type_title,
                 summaryRes = R.string.jav_library_proxy_summary,
                 keywords = listOf("jav", "proxy", "http", "socks", "network", "user agent"),
                 category = "Library",
                 screen = JavSettingsScreen,
+            ))
+
+            // Metadata and collections
+            add(SearchablePreference(
+                key = "metadata.tmdb_key",
+                titleRes = R.string.metadata_tmdb_key_title,
+                summaryRes = R.string.metadata_tmdb_key_summary,
+                keywords = listOf("tmdb", "metadata", "api", "key", "cast", "collection"),
+                category = "Metadata",
+                screen = MetadataSettingsScreen,
+            ))
+            add(SearchablePreference(
+                key = "metadata.collections",
+                titleRes = R.string.collections_title,
+                summaryRes = R.string.collections_subtitle,
+                keywords = listOf("collection", "franchise", "series", "movies", "tmdb", "missing"),
+                category = "Metadata",
+                screen = CollectionsScreen,
             ))
 
             // About

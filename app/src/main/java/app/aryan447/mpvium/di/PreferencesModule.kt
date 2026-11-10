@@ -12,6 +12,7 @@ import app.aryan447.mpvium.preferences.JavPreferences
 import app.aryan447.mpvium.preferences.PlayerPreferences
 import app.aryan447.mpvium.preferences.SettingsManager
 import app.aryan447.mpvium.preferences.StreamingPreferences
+import app.aryan447.mpvium.preferences.TmdbPreferences
 import app.aryan447.mpvium.preferences.SubtitlesPreferences
 import app.aryan447.mpvium.preferences.preference.AndroidPreferenceStore
 import app.aryan447.mpvium.preferences.preference.PreferenceStore
@@ -35,5 +36,6 @@ val PreferencesModule =
     singleOf(::FoldersPreferences)
     singleOf(::JavPreferences)
     singleOf(::StreamingPreferences)
+    singleOf(::TmdbPreferences)
     singleOf(::SettingsManager)
   }

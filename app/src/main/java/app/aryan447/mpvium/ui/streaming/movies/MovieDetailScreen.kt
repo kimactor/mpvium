@@ -467,6 +467,23 @@ data class MovieDetailScreen(
                 )
               }
 
+              if (currentMovie.studios.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                  text = "${stringResource(R.string.movie_studios)}: ${currentMovie.studios.joinToString(", ")}",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
+              if (currentMovie.cast.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                  text = "${stringResource(R.string.movie_cast)}: ${currentMovie.cast.joinToString(", ")}",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
+
               Spacer(modifier = Modifier.height(20.dp))
 
               // Big Play Button

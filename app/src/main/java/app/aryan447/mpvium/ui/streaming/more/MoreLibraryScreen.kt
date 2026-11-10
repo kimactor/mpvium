@@ -19,11 +19,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -53,6 +55,8 @@ import app.aryan447.mpvium.ui.browser.LocalNavigationBarHeight
 import app.aryan447.mpvium.ui.browser.networkstreaming.NetworkStreamingScreen
 import app.aryan447.mpvium.ui.browser.playlist.PlaylistScreen
 import app.aryan447.mpvium.ui.jav.JavLibraryScreen
+import app.aryan447.mpvium.ui.tmdb.CollectionsScreen
+import app.aryan447.mpvium.ui.tmdb.MetadataSettingsScreen
 import app.aryan447.mpvium.ui.browser.recentlyplayed.RecentlyPlayedScreen
 import app.aryan447.mpvium.ui.library.insights.InsightsScreen
 import app.aryan447.mpvium.ui.preferences.PreferencesScreen
@@ -137,6 +141,24 @@ object MoreLibraryScreen : Screen {
             subtitle = stringResource(R.string.jav_library_subtitle),
             icon = Icons.Filled.Movie,
             onClick = { backstack.add(JavLibraryScreen) },
+          )
+        }
+
+        item {
+          LibraryItemCard(
+            title = stringResource(R.string.collections_title),
+            subtitle = stringResource(R.string.collections_subtitle),
+            icon = Icons.Filled.Collections,
+            onClick = { backstack.add(CollectionsScreen) },
+          )
+        }
+
+        item {
+          LibraryItemCard(
+            title = stringResource(R.string.metadata_title),
+            subtitle = stringResource(R.string.metadata_subtitle),
+            icon = Icons.Filled.Tune,
+            onClick = { backstack.add(MetadataSettingsScreen) },
           )
         }
 

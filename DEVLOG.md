@@ -20,6 +20,15 @@
 >
 > Older entries: see DEVLOG-archive/ (once archiving starts).
 
+## [2026-11-10 12:23] Change #3: Add JavDB, WorkManager batches, and TMDb collections
+- **Purpose**: Complete the planned JAV and metadata pipeline through JavDB fallback, background batch jobs, TMDb enrichment, and movie collections.
+- **Approach**: Keep each source behind a client/repository boundary; persist scrape state in Room; use WorkManager for long-running batches; extend the existing metadata cache with optional TMDb fields so old caches remain readable.
+- **Proposal**: JavBus remains primary for standard codes; JavDB is used first for FC2/amateur/date codes and as fallback/enrichment elsewhere. TMDb direct details are additive and fall back to the existing Wyzie/Cinemeta path.
+- **Decision**: Implemented JavDB public API client with host cooling and App signature, JAV scrape/cover WorkManager jobs, TMDb client and enrichment worker, collection cache fields, and collection list/detail screens.
+- **Files**: `app/src/main/java/app/aryan447/mpvium/domain/jav/`, `app/src/main/java/app/aryan447/mpvium/domain/tmdb/`, `app/src/main/java/app/aryan447/mpvium/ui/jav/`, `app/src/main/java/app/aryan447/mpvium/ui/tmdb/`, `app/src/main/java/app/aryan447/mpvium/domain/streaming/StreamingMetadataRepository.kt`, `app/src/main/java/app/aryan447/mpvium/domain/streaming/model/StreamingModels.kt`, `app/src/main/java/app/aryan447/mpvium/di/DomainModule.kt`, `app/src/main/java/app/aryan447/mpvium/di/PreferencesModule.kt`, `app/src/main/java/app/aryan447/mpvium/preferences/`, `app/src/main/java/app/aryan447/mpvium/ui/preferences/SearchablePreference.kt`, `app/src/main/java/app/aryan447/mpvium/ui/streaming/more/MoreLibraryScreen.kt`, `app/src/main/java/app/aryan447/mpvium/ui/streaming/movies/MovieDetailScreen.kt`, `app/src/main/AndroidManifest.xml`, `app/build.gradle.kts`, `gradle/libs.versions.toml`, `app/src/main/res/values/strings.xml`, `CHANGELOG.md`
+- **Risks**: JavDB App signature constants are fixed and may expire; JavDB host policy may change; WorkManager foreground needs notification permission; TMDb enrichment is network-heavy and may overwrite automatic matches (manual/custom fields are preserved); API keys are stored in normal SharedPreferences.
+- **Verification**: Pending CI compile and artifact build. Previous P0/P1 commit passed the fork CI build.
+
 ## [2026-11-10 11:44] Change #2: Add JavBus source and JAV library screens
 - **Purpose**: Deliver the first usable JAV slice: scrape JavBus metadata, cache covers locally, and browse/play detected files in a dedicated library.
 - **Approach**: Keep the network layer behind `JavBusSource` and `JavHttpClientFactory`; store metadata in the existing Room tables; build library/detail/settings screens from the existing Compose design system. JavDB remains disabled until the next phase.

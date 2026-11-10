@@ -3,6 +3,7 @@ package app.aryan447.mpvium.domain.jav
 import app.aryan447.mpvium.database.dao.JavDao
 import app.aryan447.mpvium.database.entities.JavItemEntity
 import app.aryan447.mpvium.domain.streaming.StreamingArtworkStore
+import app.aryan447.mpvium.preferences.JavPreferences
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -18,7 +19,9 @@ data class JavScrapeResult(
 class JavMetadataRepository(
   private val javDao: JavDao,
   private val javBusSource: JavBusSource,
+  private val javDbSource: JavDbPublicSource,
   private val artworkStore: StreamingArtworkStore,
+  private val preferences: JavPreferences,
   private val json: Json,
 ) {
   companion object {
@@ -42,11 +45,16 @@ class JavMetadataRepository(
     }
 
     try {
-      val metadata = javBusSource.fetch(code)
+      val metadata = fetchMetadata(code)
+      val coverHeaders = if (metadata.source == "JavDB" || metadata.source == "JavDB+JavBus") {
+        javDbSource.coverHeaders()
+      } else {
+        javBusSource.coverHeaders()
+      }
       val localCoverPath = metadata.coverUrl?.let { coverUrl ->
         artworkStore.downloadToLocal(
           url = coverUrl,
-          headers = javBusSource.coverHeaders(),
+          headers = coverHeaders,
           keyHint = code,
         )
       }
@@ -83,6 +91,61 @@ class JavMetadataRepository(
       JavScrapeResult(item, JavSourceFailureKind.NETWORK, item.lastError)
     }
   }
+
+  private suspend fun fetchMetadata(code: String): JavMetadata {
+    val javDbEnabled = preferences.javDbEnabled.get()
+    val kind = JavCodeParser.parse(code)?.kind
+    val preferJavDb = kind == JavCodeKind.FC2 ||
+      kind == JavCodeKind.AMATEUR ||
+      kind == JavCodeKind.DATED
+
+    if (javDbEnabled && preferJavDb) {
+      runCatching { javDbSource.fetch(code) }.getOrNull()?.let { return it }
+    }
+
+    val busResult = runCatching { javBusSource.fetch(code) }
+    if (busResult.isSuccess) {
+      val bus = busResult.getOrThrow()
+      if (javDbEnabled && (bus.title.isBlank() || bus.coverUrl.isNullOrBlank() || bus.actresses.isEmpty())) {
+        val db = runCatching { javDbSource.fetch(code) }.getOrNull()
+        if (db != null) return merge(bus, db)
+      }
+      return bus
+    }
+
+    val busError = busResult.exceptionOrNull()
+    if (javDbEnabled) {
+      val dbResult = runCatching { javDbSource.fetch(code) }
+      dbResult.getOrNull()?.let { return it }
+      val dbError = dbResult.exceptionOrNull()
+      if (dbError is JavSourceException && dbError.kind == JavSourceFailureKind.NOT_FOUND) {
+        throw dbError
+      }
+    }
+    throw (busError as? JavSourceException)
+      ?: JavSourceException(
+        JavSourceFailureKind.NETWORK,
+        busError?.message ?: "JavBus request failed",
+      )
+  }
+
+  private fun merge(primary: JavMetadata, fallback: JavMetadata): JavMetadata = primary.copy(
+    title = primary.title.ifBlank { fallback.title },
+    originalTitle = primary.originalTitle ?: fallback.originalTitle,
+    overview = primary.overview ?: fallback.overview,
+    releaseDate = primary.releaseDate ?: fallback.releaseDate,
+    runtimeMinutes = primary.runtimeMinutes ?: fallback.runtimeMinutes,
+    studio = primary.studio ?: fallback.studio,
+    label = primary.label ?: fallback.label,
+    series = primary.series ?: fallback.series,
+    director = primary.director ?: fallback.director,
+    genres = primary.genres.ifEmpty { fallback.genres },
+    actresses = primary.actresses.ifEmpty { fallback.actresses },
+    coverUrl = primary.coverUrl ?: fallback.coverUrl,
+    source = if (primary.coverUrl != null) "JavBus+JavDB" else "JavDB+JavBus",
+    sourceUrl = primary.sourceUrl ?: fallback.sourceUrl,
+    sourceId = primary.sourceId ?: fallback.sourceId,
+  )
 
   private fun JavItemEntity.isFresh(now: Long): Boolean {
     val fetched = fetchedAt ?: return false

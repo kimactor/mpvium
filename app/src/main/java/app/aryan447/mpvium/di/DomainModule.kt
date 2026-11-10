@@ -3,6 +3,7 @@ package app.aryan447.mpvium.di
 import app.aryan447.mpvium.domain.anime4k.Anime4KManager
 import app.aryan447.mpvium.domain.audio.AudioRepository
 import app.aryan447.mpvium.domain.jav.JavBusSource
+import app.aryan447.mpvium.domain.jav.JavDbPublicSource
 import app.aryan447.mpvium.domain.jav.JavHttpClientFactory
 import app.aryan447.mpvium.domain.jav.JavLibraryRepository
 import app.aryan447.mpvium.domain.jav.JavMetadataRepository
@@ -10,6 +11,7 @@ import app.aryan447.mpvium.domain.streaming.LibraryIndexRepository
 import app.aryan447.mpvium.domain.streaming.SeriesDetector
 import app.aryan447.mpvium.domain.streaming.StreamingArtworkStore
 import app.aryan447.mpvium.domain.streaming.StreamingMetadataRepository
+import app.aryan447.mpvium.domain.tmdb.TmdbClient
 import app.aryan447.mpvium.repository.explain.ExplainRepository
 import app.aryan447.mpvium.repository.intro.IntroSkipRepository
 import app.aryan447.mpvium.repository.subtitle.SubtitleProfileRepository
@@ -37,10 +39,12 @@ val domainModule = module {
     single { LibraryIndexRepository(androidContext(), get(), get(), get(), get(), get()) }
     single { JavHttpClientFactory(get()) }
     single { JavBusSource(get(), get()) }
-    single { JavMetadataRepository(get(), get(), get(), get()) }
+    single { JavDbPublicSource(get(), get(), get()) }
+    single { JavMetadataRepository(get(), get(), get(), get(), get(), get()) }
     single { JavLibraryRepository(get(), get(), get()) }
     single { StreamingArtworkStore(androidContext(), get()) }
-    single { StreamingMetadataRepository(androidContext(), get(), get(), get(), get()) }
+    single { TmdbClient(get(), get(), get()) }
+    single { StreamingMetadataRepository(androidContext(), get(), get(), get(), get(), get()) }
     single { SubtitleProfileRepository(androidContext(), get(), get()) }
     single { AudioRepository(androidContext()) }
 }
