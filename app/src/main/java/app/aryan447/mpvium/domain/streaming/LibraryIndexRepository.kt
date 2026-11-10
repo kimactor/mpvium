@@ -5,12 +5,16 @@ import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
+import app.aryan447.mpvium.database.dao.JavDao
 import app.aryan447.mpvium.database.dao.LibraryIndexDao
+import app.aryan447.mpvium.database.entities.JavFileEntity
 import app.aryan447.mpvium.database.entities.LibraryIndexEntity
+import app.aryan447.mpvium.domain.jav.JavCodeParser
 import app.aryan447.mpvium.domain.media.model.Video
 import app.aryan447.mpvium.domain.media.model.VideoFolder
 import app.aryan447.mpvium.preferences.FolderVisibility
 import app.aryan447.mpvium.preferences.FoldersPreferences
+import app.aryan447.mpvium.preferences.JavPreferences
 import app.aryan447.mpvium.preferences.LibraryScanMode
 import app.aryan447.mpvium.repository.MediaFileRepository
 import app.aryan447.mpvium.utils.media.MediaInfoParser
@@ -25,6 +29,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -38,6 +43,8 @@ class LibraryIndexRepository(
   private val dao: LibraryIndexDao,
   private val foldersPreferences: FoldersPreferences,
   private val seriesDetector: SeriesDetector,
+  private val javDao: JavDao,
+  private val javPreferences: JavPreferences,
 ) {
   companion object {
     private const val TAG = "LibraryIndexRepository"
@@ -101,6 +108,18 @@ class LibraryIndexRepository(
         if (foldersPreferences.libraryScanMode.get() == LibraryScanMode.AUTO && _library.value != null) {
           runCatching { refresh(force = false) }
         }
+      }
+    }
+    scope.launch {
+      javPreferences.libraryEnabled.changes().drop(1).collectLatest {
+        isDirty = true
+        runCatching { refresh(force = true) }
+      }
+    }
+    scope.launch {
+      javPreferences.hideFromNormalLibrary.changes().drop(1).collectLatest {
+        isDirty = true
+        runCatching { refresh(force = true) }
       }
     }
   }
@@ -264,7 +283,10 @@ class LibraryIndexRepository(
 
     // Phase 3: Grouping
     val groupingStartTime = System.currentTimeMillis()
-    val detected = seriesDetector.groupMedia(items, visibleFolders)
+    val visibleItems = filterJavItems(items)
+    val visibleBucketIds = visibleItems.mapTo(HashSet()) { it.first.bucketId }
+    val filteredFolders = visibleFolders.filter { it.bucketId in visibleBucketIds }
+    val detected = seriesDetector.groupMedia(visibleItems, filteredFolders)
     val groupingMs = System.currentTimeMillis() - groupingStartTime
 
     val totalMs = System.currentTimeMillis() - totalStartTime
@@ -275,12 +297,57 @@ class LibraryIndexRepository(
     detected
   }
 
+  private suspend fun filterJavItems(
+    items: List<Pair<Video, ParsedMediaInfo>>,
+  ): List<Pair<Video, ParsedMediaInfo>> {
+    if (!javPreferences.libraryEnabled.get()) return items
+
+    val hideJav = javPreferences.hideFromNormalLibrary.get()
+    val manualPaths = javDao.getManualFilePaths().toSet()
+    val seenAt = System.currentTimeMillis()
+    val autoFiles = mutableListOf<JavFileEntity>()
+    val visible = ArrayList<Pair<Video, ParsedMediaInfo>>(items.size)
+
+    for ((video, parsed) in items) {
+      if (video.path in manualPaths) {
+        if (!hideJav) visible.add(video to parsed)
+        continue
+      }
+
+      val parentName = runCatching { File(video.path).parentFile?.name }.getOrNull()
+      val match = JavCodeParser.parseFile(video.displayName, parentName)
+      if (match == null || match.confidence < JavCodeParser.MIN_AUTO_CONFIDENCE) {
+        visible.add(video to parsed)
+        continue
+      }
+
+      autoFiles.add(
+        JavFileEntity(
+          path = video.path,
+          code = match.code,
+          rawCode = match.rawCode,
+          kind = match.kind.name,
+          confidence = match.confidence,
+          displayName = video.displayName,
+          size = video.size,
+          mtimeMs = video.dateModified,
+          lastSeenAt = seenAt,
+        ),
+      )
+      if (!hideJav) visible.add(video to parsed)
+    }
+
+    javDao.indexFiles(autoFiles, manualPaths.toList(), seenAt)
+    javDao.deleteFilesNotSeenSince(seenAt)
+    return visible
+  }
+
   private suspend fun loadFromSnapshotIfAvailable() {
     try {
       val cachedEntities = dao.getAll()
       if (cachedEntities.isNotEmpty() && _library.value == null) {
         val totalStart = System.currentTimeMillis()
-        val items = cachedEntities.map { it.toVideo() to it.toParsedMediaInfo() }
+        val items = filterJavItems(cachedEntities.map { it.toVideo() to it.toParsedMediaInfo() })
         val folders = buildFoldersFromVideos(items.map { it.first })
         val groupingStart = System.currentTimeMillis()
         val detected = seriesDetector.groupMedia(items, folders)
@@ -301,7 +368,7 @@ class LibraryIndexRepository(
     return try {
       val cachedEntities = dao.getAll()
       if (cachedEntities.isEmpty()) return null
-      val items = cachedEntities.map { it.toVideo() to it.toParsedMediaInfo() }
+      val items = filterJavItems(cachedEntities.map { it.toVideo() to it.toParsedMediaInfo() })
       val folders = buildFoldersFromVideos(items.map { it.first })
       seriesDetector.groupMedia(items, folders)
     } catch (e: Exception) {

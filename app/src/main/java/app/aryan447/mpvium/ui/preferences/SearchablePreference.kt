@@ -2,6 +2,7 @@ package app.aryan447.mpvium.ui.preferences
 
 import androidx.annotation.StringRes
 import app.aryan447.mpvium.R
+import app.aryan447.mpvium.ui.jav.JavSettingsScreen
 import app.aryan447.mpvium.presentation.Screen
 
 /**
@@ -848,6 +849,40 @@ object SearchablePreferences {
                 keywords = listOf("lean", "seek", "cache", "demuxer", "ram", "buffer", "fast", "scrub"),
                 category = "Advanced",
                 screen = AdvancedPreferencesScreen,
+            ))
+
+            // JAV library
+            add(SearchablePreference(
+                key = "jav.library",
+                titleRes = R.string.jav_library_title,
+                summaryRes = R.string.jav_library_subtitle,
+                keywords = listOf("jav", "adult", "code", "metadata", "cover", "javbus", "scrape"),
+                category = "Library",
+                screen = JavSettingsScreen,
+            ))
+            add(SearchablePreference(
+                key = "jav.enable",
+                titleRes = R.string.jav_library_enable_title,
+                summaryRes = R.string.jav_library_enable_summary,
+                keywords = listOf("jav", "enable", "library", "codes", "scan"),
+                category = "Library",
+                screen = JavSettingsScreen,
+            ))
+            add(SearchablePreference(
+                key = "jav.cookie",
+                titleRes = R.string.jav_library_cookie_title,
+                summaryRes = R.string.jav_library_cookie_summary,
+                keywords = listOf("javbus", "cookie", "age", "login", "auth"),
+                category = "Library",
+                screen = JavSettingsScreen,
+            ))
+            add(SearchablePreference(
+                key = "jav.proxy",
+                titleRes = R.string.jav_library_proxy_type_title,
+                summaryRes = R.string.jav_library_proxy_summary,
+                keywords = listOf("jav", "proxy", "http", "socks", "network", "user agent"),
+                category = "Library",
+                screen = JavSettingsScreen,
             ))
 
             // About

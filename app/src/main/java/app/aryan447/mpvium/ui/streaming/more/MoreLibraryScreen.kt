@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -43,12 +44,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import app.aryan447.mpvium.R
 import app.aryan447.mpvium.presentation.Screen
 import app.aryan447.mpvium.ui.browser.LocalNavigationBarHeight
 import app.aryan447.mpvium.ui.browser.networkstreaming.NetworkStreamingScreen
 import app.aryan447.mpvium.ui.browser.playlist.PlaylistScreen
+import app.aryan447.mpvium.ui.jav.JavLibraryScreen
 import app.aryan447.mpvium.ui.browser.recentlyplayed.RecentlyPlayedScreen
 import app.aryan447.mpvium.ui.library.insights.InsightsScreen
 import app.aryan447.mpvium.ui.preferences.PreferencesScreen
@@ -124,6 +128,15 @@ object MoreLibraryScreen : Screen {
             subtitle = "Custom playlists and M3U streams",
             icon = Icons.AutoMirrored.Filled.PlaylistPlay,
             onClick = { backstack.add(PlaylistScreen) },
+          )
+        }
+
+        item {
+          LibraryItemCard(
+            title = stringResource(R.string.jav_library_title),
+            subtitle = stringResource(R.string.jav_library_subtitle),
+            icon = Icons.Filled.Movie,
+            onClick = { backstack.add(JavLibraryScreen) },
           )
         }
 
