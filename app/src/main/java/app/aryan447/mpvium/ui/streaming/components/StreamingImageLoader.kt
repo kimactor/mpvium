@@ -1,5 +1,6 @@
 package app.aryan447.mpvium.ui.streaming.components
 
+import android.graphics.Bitmap
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -45,6 +46,7 @@ fun StreamingImage(
   contentScale: ContentScale = ContentScale.Crop,
   contentDescription: String? = null,
   maxDimensionPx: Int = StreamingArtworkStore.DEFAULT_MAX_DIMENSION,
+  onImageLoaded: ((Bitmap) -> Unit)? = null,
 ) {
   val artworkStore = koinInject<StreamingArtworkStore>()
   val thumbnailRepository = koinInject<ThumbnailRepository>()
@@ -80,6 +82,10 @@ fun StreamingImage(
       }
     }
     isLoading = false
+  }
+
+  LaunchedEffect(bitmap, url) {
+    bitmap?.let { onImageLoaded?.invoke(it) }
   }
 
   Crossfade(
