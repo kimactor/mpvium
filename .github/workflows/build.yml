@@ -41,7 +41,7 @@ jobs:
         # (release.yml) are unaffected and still build all ABIs minified.
         # lintVital is skipped for speed; re-add if release lint gate needed.
         # --tests limits the unit-test task to the JAV package.
-        run: ./gradlew assembleStandardRelease bundleStandardRelease testStandardReleaseUnitTest --parallel -x lintVitalStandardRelease -PciDebugSigning -PbundleBuild -PciFastBuild --tests "app.aryan447.mpvium.domain.jav.*"
+        run: ./gradlew assembleStandardRelease bundleStandardRelease testStandardDebugUnitTest --parallel -x lintVitalStandardRelease -PciDebugSigning -PbundleBuild -PciFastBuild --tests "app.aryan447.mpvium.domain.jav.*"
 
       - name: Upload release bundle
         uses: actions/upload-artifact@v7
