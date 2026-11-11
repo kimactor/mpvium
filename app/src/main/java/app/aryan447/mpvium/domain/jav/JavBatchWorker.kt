@@ -38,8 +38,7 @@ class JavBatchWorker(
   private val libraryIndexRepository: LibraryIndexRepository by inject()
   private val metadataRepository: JavMetadataRepository by inject()
   private val artworkStore: StreamingArtworkStore by inject()
-  private val javBusSource: JavBusSource by inject()
-  private val javDbSource: JavDbPublicSource by inject()
+  private val httpClientFactory: JavHttpClientFactory by inject()
 
   override suspend fun doWork(): Result {
     val mode = inputData.getString(JavBatchScheduler.KEY_MODE) ?: JavBatchScheduler.MODE_SCRAPE
@@ -79,11 +78,26 @@ class JavBatchWorker(
 
     var success = 0
     var failed = 0
+    val failureKinds = linkedMapOf<JavSourceFailureKind, Int>()
+    var lastError: String? = null
     publishProgress(0, targets.size, "scrape")
     targets.forEachIndexed { index, item ->
       if (isStopped) return Result.failure()
-      val result = runCatching { metadataRepository.scrape(item.code, force = true) }.getOrNull()
-      if (result != null && result.errorKind == null) success++ else failed++
+      val result = try {
+        metadataRepository.scrape(item.code, force = true)
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (_: Exception) {
+        null
+      }
+      if (result != null && result.errorKind == null) {
+        success++
+      } else {
+        failed++
+        val kind = result?.errorKind ?: JavSourceFailureKind.NETWORK
+        failureKinds[kind] = (failureKinds[kind] ?: 0) + 1
+        result?.errorMessage?.takeIf { it.isNotBlank() }?.let { lastError = it }
+      }
       val done = index + 1
       if (done == targets.size || done % 3 == 0) {
         publishProgress(done, targets.size, item.code)
@@ -95,6 +109,8 @@ class JavBatchWorker(
         KEY_TOTAL to targets.size,
         JavBatchScheduler.KEY_SUCCESS to success,
         JavBatchScheduler.KEY_FAILED to failed,
+        JavBatchScheduler.KEY_FAILURE_KINDS to failureKinds.entries.joinToString(", ") { "${it.key.name}=${it.value}" },
+        JavBatchScheduler.KEY_LAST_ERROR to lastError.orEmpty(),
       ),
     )
   }
@@ -139,7 +155,13 @@ class JavBatchWorker(
       if (isStopped) return Result.failure()
       var item = original
       if (!item.hasUsableCover() && item.coverUrl.isNullOrBlank()) {
-        val scraped = runCatching { metadataRepository.scrape(item.code, force = true) }.getOrNull()
+        val scraped = try {
+          metadataRepository.scrape(item.code, force = true)
+        } catch (cancelled: CancellationException) {
+          throw cancelled
+        } catch (_: Exception) {
+          null
+        }
         if (scraped != null) item = scraped.item
       }
 
@@ -150,14 +172,19 @@ class JavBatchWorker(
         if (coverUrl.isNullOrBlank()) {
           noCover++
         } else {
-          val headers = if (item.source == "JavDB" || item.source == "JavDB+JavBus") {
-            javDbSource.coverHeaders()
-          } else {
-            javBusSource.coverHeaders()
+          val headers = metadataRepository.coverHeadersFor(coverUrl)
+          val localPath = try {
+            artworkStore.downloadToLocal(
+              url = coverUrl,
+              headers = headers,
+              keyHint = item.code,
+              httpClient = httpClientFactory.build(),
+            )
+          } catch (cancelled: CancellationException) {
+            throw cancelled
+          } catch (_: Exception) {
+            null
           }
-          val localPath = runCatching {
-            artworkStore.downloadToLocal(coverUrl, headers, item.code)
-          }.getOrNull()
           if (localPath != null) {
             javDao.upsertItem(
               item.copy(

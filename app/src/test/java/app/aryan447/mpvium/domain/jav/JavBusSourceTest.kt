@@ -1,6 +1,7 @@
 package app.aryan447.mpvium.domain.jav
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -72,5 +73,29 @@ class JavBusSourceTest {
     }
 
     assertEquals(JavSourceFailureKind.NOT_FOUND, error.kind)
+  }
+
+  @Test
+  fun sendsAgeGateCookiesAfterConfirmation() {
+    assertEquals("age=verified; dv=1", JavBusCookies.merge(ageConfirmed = true, raw = ""))
+  }
+
+  @Test
+  fun userCookieOverridesAgeGateDefaults() {
+    assertEquals(
+      "age=manual; dv=1; existmag=mag",
+      JavBusCookies.merge(ageConfirmed = true, raw = "existmag=mag; age=manual"),
+    )
+  }
+
+  @Test
+  fun doesNotSendAgeGateCookiesBeforeConfirmation() {
+    assertNull(JavBusCookies.merge(ageConfirmed = false, raw = ""))
+    assertEquals("dv=1", JavBusCookies.merge(ageConfirmed = false, raw = "dv=1"))
+  }
+
+  @Test
+  fun stripsCookieHeaderPrefixAndNewlines() {
+    assertEquals("age=verified", JavBusCookies.clean("Cookie: age=verified\r\n"))
   }
 }

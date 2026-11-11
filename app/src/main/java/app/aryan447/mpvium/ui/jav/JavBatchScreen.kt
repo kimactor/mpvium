@@ -172,13 +172,18 @@ private fun BatchResultCard(
   info: WorkInfo,
   scrape: Boolean,
 ) {
-  val message = when (info.state) {
+  val state = info.state
+  val failed = info.outputData.getInt(JavBatchScheduler.KEY_FAILED, 0)
+  val failureKinds = info.outputData.getString(JavBatchScheduler.KEY_FAILURE_KINDS).orEmpty()
+  val lastError = info.outputData.getString(JavBatchScheduler.KEY_LAST_ERROR).orEmpty()
+
+  val message = when (state) {
     WorkInfo.State.SUCCEEDED -> {
       if (scrape) {
         stringResource(
           R.string.jav_batch_scrape_result,
           info.outputData.getInt(JavBatchScheduler.KEY_SUCCESS, 0),
-          info.outputData.getInt(JavBatchScheduler.KEY_FAILED, 0),
+          failed,
         )
       } else {
         val total = info.outputData.getInt(JavBatchScheduler.KEY_TOTAL, 0)
@@ -194,7 +199,7 @@ private fun BatchResultCard(
           stringResource(
             R.string.jav_batch_cover_result,
             info.outputData.getInt(JavBatchScheduler.KEY_SUCCESS, 0),
-            info.outputData.getInt(JavBatchScheduler.KEY_FAILED, 0),
+            failed,
             info.outputData.getInt(JavBatchScheduler.KEY_NO_COVER, 0),
             info.outputData.getInt(JavBatchScheduler.KEY_ALREADY_CACHED, 0),
           )
@@ -209,6 +214,18 @@ private fun BatchResultCard(
     else -> null
   }
 
+  val kindsText = if (state == WorkInfo.State.SUCCEEDED && scrape && failed > 0 && failureKinds.isNotBlank()) {
+    stringResource(R.string.jav_batch_failure_kinds, failureKinds)
+  } else {
+    null
+  }
+  val lastErrorText = if (state == WorkInfo.State.SUCCEEDED && scrape && failed > 0 && lastError.isNotBlank()) {
+    stringResource(R.string.jav_batch_last_error, lastError.take(300))
+  } else {
+    null
+  }
+  val details = listOfNotNull(kindsText, lastErrorText).joinToString("\n")
+
   if (message != null) {
     PreferenceCard {
       Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
@@ -219,6 +236,14 @@ private fun BatchResultCard(
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.padding(top = 4.dp),
         )
+        if (details.isNotBlank()) {
+          Text(
+            text = details,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+          )
+        }
       }
     }
   }

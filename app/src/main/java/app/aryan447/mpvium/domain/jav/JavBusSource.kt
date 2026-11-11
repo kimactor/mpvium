@@ -3,6 +3,7 @@ package app.aryan447.mpvium.domain.jav
 import app.aryan447.mpvium.preferences.JavPreferences
 import java.net.URI
 import java.net.URLEncoder
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
@@ -20,12 +21,20 @@ class JavBusSource(
       "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 " +
         "(KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36"
     private const val RATE_LIMIT_MS = 2_000L
+    private const val NETWORK_COOLDOWN_MS = 5L * 60 * 1000
+    private const val BLOCKED_COOLDOWN_MS = 15L * 60 * 1000
   }
 
   private val requestLock = Mutex()
   private var lastRequestAt = 0L
+  @Volatile private var cooldownUntil = 0L
+  @Volatile private var cooldownKind = JavSourceFailureKind.NETWORK
+  @Volatile private var cooldownMessage = "JavBus is temporarily unavailable"
 
   suspend fun fetch(code: String): JavMetadata = withContext(Dispatchers.IO) {
+    if (System.currentTimeMillis() < cooldownUntil) {
+      throw JavSourceException(cooldownKind, cooldownMessage)
+    }
     awaitRateLimit()
     val url = "$BASE_URL/${URLEncoder.encode(code, "UTF-8").replace("+", "%20")}"
     val builder = Request.Builder()
@@ -36,25 +45,50 @@ class JavBusSource(
       .header("Referer", "$BASE_URL/")
       .header("User-Agent", userAgent())
 
-    val cookie = preferences.javBusCookie.get().trim().replace("\r", "").replace("\n", "")
-    if (cookie.isNotBlank()) builder.header("Cookie", cookie)
+    val userCookie = JavBusCookies.clean(preferences.javBusCookie.get())
+    val cookie = JavBusCookies.merge(
+      ageConfirmed = preferences.ageConfirmed.get(),
+      raw = userCookie,
+    )
+    if (cookie != null) builder.header("Cookie", cookie)
 
-    httpClientFactory.build().newCall(builder.build()).execute().use { response ->
-      when {
-        response.code == 404 || response.code == 410 -> throw JavSourceException(
-          JavSourceFailureKind.NOT_FOUND,
-          "JavBus does not have $code",
-        )
-        response.code == 403 -> throw JavSourceException(
-          JavSourceFailureKind.BLOCKED,
-          "JavBus returned HTTP 403; check the cookie or proxy",
-        )
-        !response.isSuccessful -> throw JavSourceException(
-          JavSourceFailureKind.NETWORK,
-          "JavBus returned HTTP ${response.code}",
-        )
+    try {
+      httpClientFactory.build().newCall(builder.build()).execute().use { response ->
+        when {
+          response.code == 404 || response.code == 410 -> throw JavSourceException(
+            JavSourceFailureKind.NOT_FOUND,
+            "JavBus does not have $code",
+          )
+          response.code == 403 -> throw JavSourceException(
+            JavSourceFailureKind.BLOCKED,
+            "JavBus returned HTTP 403; check the cookie or proxy",
+          )
+          !response.isSuccessful -> throw JavSourceException(
+            JavSourceFailureKind.NETWORK,
+            "JavBus returned HTTP ${response.code}",
+          )
+        }
+        JavBusParser.parse(code, response.body.string(), url, userCookie.isBlank())
       }
-      JavBusParser.parse(code, response.body.string(), url, cookie.isBlank())
+    } catch (error: JavSourceException) {
+      if (error.kind == JavSourceFailureKind.NETWORK || error.kind == JavSourceFailureKind.BLOCKED) {
+        val cooldownMs = if (error.kind == JavSourceFailureKind.BLOCKED) {
+          BLOCKED_COOLDOWN_MS
+        } else {
+          NETWORK_COOLDOWN_MS
+        }
+        cooldownKind = error.kind
+        cooldownMessage = error.message ?: "JavBus is temporarily unavailable"
+        cooldownUntil = System.currentTimeMillis() + cooldownMs
+      }
+      throw error
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (error: Exception) {
+      cooldownKind = JavSourceFailureKind.NETWORK
+      cooldownMessage = error.message ?: "JavBus request failed"
+      cooldownUntil = System.currentTimeMillis() + NETWORK_COOLDOWN_MS
+      throw JavSourceException(cooldownKind, cooldownMessage)
     }
   }
 
@@ -62,7 +96,10 @@ class JavBusSource(
     put("Referer", "$BASE_URL/")
     put("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8")
     put("User-Agent", userAgent())
-    preferences.javBusCookie.get().trim().replace("\r", "").replace("\n", "").takeIf { it.isNotBlank() }?.let { put("Cookie", it) }
+    JavBusCookies.merge(
+      ageConfirmed = preferences.ageConfirmed.get(),
+      raw = JavBusCookies.clean(preferences.javBusCookie.get()),
+    )?.let { put("Cookie", it) }
   }
 
   private suspend fun awaitRateLimit() = requestLock.withLock {
@@ -99,9 +136,9 @@ internal object JavBusParser {
       throw JavSourceException(
         JavSourceFailureKind.AUTH_REQUIRED,
         if (cookieMissing) {
-          "JavBus returned an age confirmation page; add a JavBus cookie in JAV settings"
+          "JavBus returned an age verification page; confirm 18+ in the JAV library or add a JavBus cookie in JAV settings"
         } else {
-          "JavBus returned an age confirmation page; the saved cookie may have expired"
+          "JavBus returned an age verification page; the saved cookie may have expired"
         },
       )
     }
@@ -169,4 +206,39 @@ internal object JavBusParser {
     }
     return result
   }
+}
+
+internal object JavBusCookies {
+  fun clean(raw: String): String {
+    var value = raw.trim().replace("\r", "").replace("\n", "")
+    if (value.startsWith("Cookie:", ignoreCase = true)) {
+      value = value.substringAfter(':').trim()
+    }
+    return value
+  }
+
+  /**
+   * JavBus gates release pages behind an age prompt. The browser-side prompt stores
+   * `age=verified` and `dv=1`; send those after the in-app 18+ confirmation so a scrape does
+   * not depend on a manually copied cookie. A user-supplied cookie still wins for any key.
+   */
+  fun merge(ageConfirmed: Boolean, raw: String): String? {
+    val fields = linkedMapOf<String, String>()
+    if (ageConfirmed) {
+      fields["age"] = "verified"
+      fields["dv"] = "1"
+    }
+    parse(raw).forEach { (name, value) -> fields[name] = value }
+    if (fields.isEmpty()) return null
+    return fields.entries.joinToString("; ") { "${it.key}=${it.value}" }
+  }
+
+  private fun parse(raw: String): Map<String, String> =
+    raw.split(';').mapNotNull { part ->
+      val index = part.indexOf('=')
+      if (index <= 0) return@mapNotNull null
+      val name = part.substring(0, index).trim()
+      val value = part.substring(index + 1).trim()
+      if (name.isBlank()) null else name to value
+    }.toMap()
 }

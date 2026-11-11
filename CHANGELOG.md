@@ -16,6 +16,8 @@
 - JAV library screen: browse detected codes, scrape JavBus metadata and covers, play files directly, and configure the JavBus cookie, HTTP/SOCKS proxy, and custom User-Agent from JAV settings.
 - JavDB fallback: use the anonymous JavDB API for FC2, amateur, and date-style codes, with host failover and automatic enrichment when JavBus is unavailable or incomplete.
 - JAV batch tools: scrape all/missing/failed/stale entries, prefetch JAV covers, and monitor or cancel jobs from the JAV batch screen.
+- JAV: DMM/FANZA fallback for standard codes, providing titles, actresses, dates, and covers without an account or a proxy.
+- JAV batch results now list the failure kinds and the last error, so a failed scrape explains itself instead of only showing counts.
 - TMDb metadata and collections: optional TMDb API key, cast/studio enrichment, movie collection membership, collection browsing with missing-part rows, and a background metadata refresh job.
 - Modern player brightness gesture: left-edge brightness swipes smoothly expand the top-right brightness capsule, with a vertical slider beneath the button and live percentage feedback; volume minimizes to a round toggle while the player interface remains visible and controls avoid screen collisions.
 - Modern player seekbar styles: added support for Standard, Wavy, and Thick seekbar styles in Modern player layout, with Standard configured as the default and configurable via Settings → Appearance → Controls.
@@ -55,6 +57,7 @@
 
 ### Fixed
 
+- JAV scraping: JavBus age-gate cookies are sent automatically after the 18+ confirmation, covers follow the JAV proxy, and JavDB auth failures are reported once instead of retried for every item.
 - Audio playback: fixed tracks failing to play from the Audio tab due to missing intent view action and URI read permissions, and ensured intent URI resolution fallbacks never drop audio media.
 - Audio player layout: padded the audio player top bar with status bar and display cutout insets so the "Now playing" header is never obscured under screen punch-hole camera cutouts.
 

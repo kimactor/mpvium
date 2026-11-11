@@ -40,7 +40,8 @@ jobs:
         # CI artifacts are larger but installable; production releases
         # (release.yml) are unaffected and still build all ABIs minified.
         # lintVital is skipped for speed; re-add if release lint gate needed.
-        run: ./gradlew assembleStandardRelease bundleStandardRelease --parallel -x lintVitalStandardRelease -PciDebugSigning -PbundleBuild -PciFastBuild
+        # --tests limits the unit-test task to the JAV package.
+        run: ./gradlew assembleStandardRelease bundleStandardRelease testStandardReleaseUnitTest --parallel -x lintVitalStandardRelease -PciDebugSigning -PbundleBuild -PciFastBuild --tests "app.aryan447.mpvium.domain.jav.*"
 
       - name: Upload release bundle
         uses: actions/upload-artifact@v7
