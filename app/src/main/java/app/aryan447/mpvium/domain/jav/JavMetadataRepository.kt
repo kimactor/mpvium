@@ -4,6 +4,7 @@ import app.aryan447.mpvium.database.dao.JavDao
 import app.aryan447.mpvium.database.entities.JavItemEntity
 import app.aryan447.mpvium.domain.streaming.StreamingArtworkStore
 import app.aryan447.mpvium.preferences.JavPreferences
+import java.net.URI
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -20,8 +21,10 @@ class JavMetadataRepository(
   private val javDao: JavDao,
   private val javBusSource: JavBusSource,
   private val javDbSource: JavDbPublicSource,
+  private val dmmSource: DmmSource,
   private val artworkStore: StreamingArtworkStore,
   private val preferences: JavPreferences,
+  private val httpClientFactory: JavHttpClientFactory,
   private val json: Json,
 ) {
   companion object {
@@ -46,16 +49,12 @@ class JavMetadataRepository(
 
     try {
       val metadata = fetchMetadata(code)
-      val coverHeaders = if (metadata.source == "JavDB" || metadata.source == "JavDB+JavBus") {
-        javDbSource.coverHeaders()
-      } else {
-        javBusSource.coverHeaders()
-      }
       val localCoverPath = metadata.coverUrl?.let { coverUrl ->
         artworkStore.downloadToLocal(
           url = coverUrl,
-          headers = coverHeaders,
+          headers = coverHeadersFor(coverUrl),
           keyHint = code,
+          httpClient = httpClientFactory.build(),
         )
       }
       val item = metadata.toEntity(
@@ -83,12 +82,25 @@ class JavMetadataRepository(
     } catch (error: Exception) {
       val item = (existing ?: JavItemEntity(code = code)).copy(
         status = JavItemEntity.STATUS_FAILED,
-        lastError = error.message ?: "JavBus request failed",
+        lastError = error.message ?: "JAV request failed",
         nextRetryAt = now + NETWORK_RETRY_MS,
         updatedAt = now,
       )
       javDao.upsertItem(item)
       JavScrapeResult(item, JavSourceFailureKind.NETWORK, item.lastError)
+    }
+  }
+
+  fun coverHeadersFor(coverUrl: String?): Map<String, String> {
+    val host = runCatching { URI(coverUrl.orEmpty()).host?.lowercase() }.getOrNull().orEmpty()
+    return when {
+      host == "dmm.co.jp" || host.endsWith(".dmm.co.jp") -> dmmSource.coverHeaders()
+      host == "javbus.com" || host.endsWith(".javbus.com") -> javBusSource.coverHeaders()
+      host == "javdb.com" ||
+        host.endsWith(".javdb.com") ||
+        host.endsWith(".spfcas.com") ||
+        host.endsWith(".jdbstatic.com") -> javDbSource.coverHeaders()
+      else -> emptyMap()
     }
   }
 
@@ -99,35 +111,69 @@ class JavMetadataRepository(
       kind == JavCodeKind.AMATEUR ||
       kind == JavCodeKind.DATED
 
+    var best: JavMetadata? = null
+    val errors = mutableListOf<JavSourceException>()
+
+    suspend fun trySource(recordError: Boolean = true, block: suspend () -> JavMetadata) {
+      attempt(block)
+        .onSuccess { metadata -> best = best?.let { merge(it, metadata) } ?: metadata }
+        .onFailure { error ->
+          if (recordError) (error as? JavSourceException)?.let { errors += it }
+        }
+    }
+
+    // FC2, amateur and dated codes are not in the DMM catalogue; JavDB was their only source.
+    // It now needs an account, so it is attempted first only when enabled and cools down after
+    // the first auth failure instead of costing two requests for every item.
     if (javDbEnabled && preferJavDb) {
-      runCatching { javDbSource.fetch(code) }.getOrNull()?.let { return it }
+      trySource { javDbSource.fetch(code) }
+      best?.takeIf { it.isComplete() }?.let { return it }
     }
 
-    val busResult = runCatching { javBusSource.fetch(code) }
-    if (busResult.isSuccess) {
-      val bus = busResult.getOrThrow()
-      if (javDbEnabled && (bus.title.isBlank() || bus.coverUrl.isNullOrBlank() || bus.actresses.isEmpty())) {
-        val db = runCatching { javDbSource.fetch(code) }.getOrNull()
-        if (db != null) return merge(bus, db)
-      }
-      return bus
+    trySource { javBusSource.fetch(code) }
+    best?.takeIf { it.isComplete() }?.let { return it }
+
+    if (kind == JavCodeKind.STANDARD) {
+      trySource { dmmSource.fetch(code) }
+      best?.takeIf { it.isComplete() }?.let { return it }
     }
 
-    val busError = busResult.exceptionOrNull()
-    if (javDbEnabled) {
-      val dbResult = runCatching { javDbSource.fetch(code) }
-      dbResult.getOrNull()?.let { return it }
-      val dbError = dbResult.exceptionOrNull()
-      if (dbError is JavSourceException && dbError.kind == JavSourceFailureKind.NOT_FOUND) {
-        throw dbError
-      }
+    if (javDbEnabled && !preferJavDb) {
+      // JavDB is an optional enrichment source for standard codes now that its public API
+      // needs an account; do not let its auth error hide a real JavBus/DMM answer.
+      trySource(recordError = false) { javDbSource.fetch(code) }
+      best?.takeIf { it.isComplete() }?.let { return it }
     }
-    throw (busError as? JavSourceException)
-      ?: JavSourceException(
-        JavSourceFailureKind.NETWORK,
-        busError?.message ?: "JavBus request failed",
-      )
+
+    best?.let { return it }
+    throw bestError(errors)
   }
+
+  private suspend fun <T> attempt(block: suspend () -> T): Result<T> =
+    try {
+      Result.success(block())
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (error: Exception) {
+      Result.failure(error)
+    }
+
+  private fun bestError(errors: List<JavSourceException>): JavSourceException {
+    val priority = listOf(
+      JavSourceFailureKind.AUTH_REQUIRED,
+      JavSourceFailureKind.BLOCKED,
+      JavSourceFailureKind.NETWORK,
+      JavSourceFailureKind.PARSE,
+      JavSourceFailureKind.NOT_FOUND,
+    )
+    for (kind in priority) {
+      errors.firstOrNull { it.kind == kind }?.let { return it }
+    }
+    return JavSourceException(JavSourceFailureKind.NETWORK, "JAV scrape failed")
+  }
+
+  private fun JavMetadata.isComplete(): Boolean =
+    title.isNotBlank() && !coverUrl.isNullOrBlank()
 
   private fun merge(primary: JavMetadata, fallback: JavMetadata): JavMetadata = primary.copy(
     title = primary.title.ifBlank { fallback.title },
@@ -142,7 +188,7 @@ class JavMetadataRepository(
     genres = primary.genres.ifEmpty { fallback.genres },
     actresses = primary.actresses.ifEmpty { fallback.actresses },
     coverUrl = primary.coverUrl ?: fallback.coverUrl,
-    source = if (primary.coverUrl != null) "JavBus+JavDB" else "JavDB+JavBus",
+    source = listOf(primary.source, fallback.source).distinct().joinToString("+"),
     sourceUrl = primary.sourceUrl ?: fallback.sourceUrl,
     sourceId = primary.sourceId ?: fallback.sourceId,
   )

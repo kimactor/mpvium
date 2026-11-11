@@ -28,6 +28,8 @@ object JavBatchScheduler {
   const val KEY_ALREADY_CACHED = "already_cached"
   const val KEY_REASON = "reason"
   const val KEY_ERROR = "error"
+  const val KEY_FAILURE_KINDS = "failure_kinds"
+  const val KEY_LAST_ERROR = "last_error"
   const val MODE_SCRAPE = "scrape"
   const val MODE_PREFETCH = "prefetch"
   const val REASON_NO_METADATA = "no_metadata"

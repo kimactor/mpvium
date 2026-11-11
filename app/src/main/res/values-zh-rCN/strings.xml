@@ -55,6 +55,7 @@
   <string name="jav_library_series">系列</string>
   <string name="jav_library_director">导演</string>
   <string name="jav_library_actresses">女优</string>
+  <string name="jav_library_actress_line">女优：%1$s</string>
   <string name="jav_library_genres">类型</string>
   <string name="jav_library_not_found_title">未找到 JAV 条目</string>
   <string name="jav_library_not_found_message">文件可能已被删除，或番号已变化。</string>
@@ -72,16 +73,16 @@
   <string name="jav_library_enable_summary">扫描文件名中的番号，并在独立资料库中显示。</string>
   <string name="jav_library_hide_title">从电影与剧集中隐藏</string>
   <string name="jav_library_hide_summary">避免 JAV 文件出现在普通电影和剧集分组中。</string>
-  <string name="jav_library_section_source">JavBus</string>
+  <string name="jav_library_section_source">来源</string>
   <string name="jav_library_cookie_title">JavBus Cookie</string>
-  <string name="jav_library_cookie_summary">年龄门需要。请粘贴浏览器会话中的 Cookie 请求头。</string>
+  <string name="jav_library_cookie_summary">可选。应用在 18+ 确认后会自动发送 JavBus 年龄门 Cookie；如果 JavBus 仍显示年龄门，再粘贴浏览器 Cookie。</string>
   <string name="jav_library_cookie_placeholder">粘贴 Cookie 请求头</string>
   <string name="jav_library_cookie_set">已设置 Cookie（%1$s…）</string>
   <string name="jav_library_javdb_title">启用 JavDB 回退</string>
-  <string name="jav_library_javdb_summary">当 JavBus 不可用或资料不完整时，使用 JavDB 匿名接口。</string>
+  <string name="jav_library_javdb_summary">JavDB 公开接口现在需要登录，首次认证失败后会跳过此回退源。</string>
   <string name="jav_library_section_network">网络</string>
   <string name="jav_library_proxy_type_title">代理类型</string>
-  <string name="jav_library_proxy_summary">用于 JavBus 请求的 HTTP 或 SOCKS 代理</string>
+  <string name="jav_library_proxy_summary">JavBus 与 JavDB 请求使用的 HTTP 或 SOCKS 代理。DMM 无需代理。</string>
   <string name="jav_library_proxy_host_title">代理主机</string>
   <string name="jav_library_proxy_host_placeholder">127.0.0.1</string>
   <string name="jav_library_proxy_port_title">代理端口</string>
@@ -89,10 +90,10 @@
   <string name="jav_library_proxy_username_title">代理用户名</string>
   <string name="jav_library_proxy_password_title">代理密码</string>
   <string name="jav_library_user_agent_title">自定义 User-Agent</string>
-  <string name="jav_library_user_agent_summary">用于 JavBus 请求。留空则使用内置浏览器 UA。</string>
+  <string name="jav_library_user_agent_summary">用于 JavBus、JavDB 与 DMM 请求。留空则使用内置浏览器 UA。</string>
   <string name="jav_library_user_agent_placeholder">Mozilla/5.0 …</string>
   <string name="jav_library_section_about">关于</string>
-  <string name="jav_library_about_text">JAV 来源仅供个人使用。请求会限速，并需要有效的 JavBus Cookie。仅本地保存元数据与封面。</string>
+  <string name="jav_library_about_text">JAV 来源仅供个人使用。JavBus 与 JavDB 遵循代理设置；DMM/FANZA 为公开目录，无需账号。元数据与封面仅保存在本地。</string>
 
   <string name="jav_batch_title">JAV 批量处理</string>
   <string name="jav_batch_filter_title">范围</string>
@@ -112,6 +113,8 @@
   <string name="jav_batch_no_cover_url">元数据中没有封面 URL。请检查 JavBus Cookie 与 JavDB 回退，然后重新开始刮削。</string>
   <string name="jav_batch_no_items">未找到 JAV 条目。</string>
   <string name="jav_batch_failed">批量任务失败：%1$s</string>
+  <string name="jav_batch_failure_kinds">失败类型：%1$s</string>
+  <string name="jav_batch_last_error">最后错误：%1$s</string>
   <string name="jav_batch_cancelled">批量任务已取消</string>
   <string name="jav_batch_current">当前：%1$s</string>
   <string name="jav_batch_notification_channel">JAV 批量任务</string>

@@ -204,6 +204,7 @@ class StreamingArtworkStore(
     url: String,
     headers: Map<String, String> = emptyMap(),
     keyHint: String = url,
+    httpClient: OkHttpClient? = null,
   ): String? = withContext(Dispatchers.IO) {
     if (url.isBlank()) return@withContext null
     if (url.startsWith("/")) return@withContext url.takeIf { File(it).isFile }
@@ -216,7 +217,7 @@ class StreamingArtworkStore(
         .url(url)
         .apply { headers.forEach { (name, value) -> header(name, value) } }
         .build()
-      client.newCall(request).execute().use { response ->
+      (httpClient ?: client).newCall(request).execute().use { response ->
         if (!response.isSuccessful) return@withContext null
         val bytes = response.body.bytes()
         if (bytes.isEmpty()) return@withContext null

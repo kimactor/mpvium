@@ -34,6 +34,7 @@ class JavDbPublicSource(
     private const val API_INTERVAL_MS = 500L
     private const val BLOCK_COOLDOWN_MS = 15L * 60 * 1000
     private const val FAILURE_COOLDOWN_MS = 60L * 1000
+    private const val AUTH_COOLDOWN_MS = 6L * 60 * 60 * 1000
     private const val APP_MIDDLE = "lpw6vgqzsp"
     private const val APP_SUFFIX =
       "71cf27bb3c0bcdf207b64abecddc970098c7421ee7203b9cdae54478478a199e" +
@@ -54,8 +55,15 @@ class JavDbPublicSource(
   private val lock = Mutex()
   private val lastRequestAt = mutableMapOf<String, Long>()
   private val cooldownUntil = mutableMapOf<String, Long>()
+  @Volatile private var authCooldownUntil = 0L
 
   suspend fun fetch(code: String): JavMetadata = withContext(Dispatchers.IO) {
+    if (System.currentTimeMillis() < authCooldownUntil) {
+      throw JavSourceException(
+        JavSourceFailureKind.AUTH_REQUIRED,
+        "JavDB now requires an account; the public API is unavailable",
+      )
+    }
     val movieId = search(code)
     val movie = detail(movieId)
     movieToMetadata(code, movie)
@@ -101,7 +109,20 @@ class JavDbPublicSource(
     val payload = runCatching { json.parseToJsonElement(body).jsonObject }
       .getOrElse { throw parseError("JavDB returned non-JSON data") }
     if (payload["success"]?.jsonPrimitive?.intOrNull != 1) {
-      throw parseError("JavDB request was not successful")
+      when (payload["action"]?.jsonPrimitive?.contentOrNull) {
+        "JWTVerificationError" -> {
+          authCooldownUntil = System.currentTimeMillis() + AUTH_COOLDOWN_MS
+          throw JavSourceException(
+            JavSourceFailureKind.AUTH_REQUIRED,
+            "JavDB now requires an account; the public API is unavailable",
+          )
+        }
+        "InvalidSignature" -> throw JavSourceException(
+          JavSourceFailureKind.PARSE,
+          "JavDB rejected the app signature; the source needs updated constants",
+        )
+        else -> throw parseError("JavDB request was not successful")
+      }
     }
     return payload["data"]?.jsonObject ?: throw parseError("JavDB response had no data")
   }

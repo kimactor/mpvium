@@ -840,6 +840,7 @@
   <string name="jav_library_series">Series</string>
   <string name="jav_library_director">Director</string>
   <string name="jav_library_actresses">Actresses</string>
+  <string name="jav_library_actress_line">Actresses: %1$s</string>
   <string name="jav_library_genres">Genres</string>
   <string name="jav_library_settings_title">JAV Settings</string>
   <string name="jav_library_section_library">Library</string>
@@ -847,11 +848,11 @@
   <string name="jav_library_enable_summary">Scan filenames for release codes and show them in a separate library.</string>
   <string name="jav_library_hide_title">Hide from Movies and Titles</string>
   <string name="jav_library_hide_summary">Keep JAV files out of the normal movie and TV groupings.</string>
-  <string name="jav_library_section_source">JavBus</string>
+  <string name="jav_library_section_source">Sources</string>
   <string name="jav_library_cookie_title">JavBus cookie</string>
-  <string name="jav_library_cookie_summary">Required for the age gate. Paste the Cookie header from a browser session.</string>
+  <string name="jav_library_cookie_summary">Optional. The app sends the JavBus age-gate cookies after the 18+ confirmation; paste a browser Cookie only if JavBus still shows the gate.</string>
   <string name="jav_library_javdb_title">Enable JavDB fallback</string>
-  <string name="jav_library_javdb_summary">Use the anonymous JavDB API when JavBus is unavailable or incomplete.</string>
+  <string name="jav_library_javdb_summary">JavDB\'s public API now requires an account. It is skipped after the first auth failure.</string>
   <string name="jav_batch_title">JAV Batch</string>
   <string name="jav_batch_filter_title">Scope</string>
   <string name="jav_batch_filter_all">All</string>
@@ -870,6 +871,8 @@
   <string name="jav_batch_no_cover_url">Metadata has no cover URL. Check JavBus Cookie and JavDB fallback, then run Start scraping.</string>
   <string name="jav_batch_no_items">No JAV items found.</string>
   <string name="jav_batch_failed">Batch failed: %1$s</string>
+  <string name="jav_batch_failure_kinds">Failures: %1$s</string>
+  <string name="jav_batch_last_error">Last error: %1$s</string>
   <string name="jav_batch_cancelled">Batch cancelled</string>
   <string name="jav_batch_current">Current: %1$s</string>
   <string name="jav_batch_notification_channel">JAV batch</string>
@@ -898,7 +901,7 @@
   <string name="jav_library_cookie_set">Cookie set (%1$s…)</string>
   <string name="jav_library_section_network">Network</string>
   <string name="jav_library_proxy_type_title">Proxy type</string>
-  <string name="jav_library_proxy_summary">HTTP or SOCKS proxy for JavBus requests</string>
+  <string name="jav_library_proxy_summary">HTTP or SOCKS proxy for JavBus and JavDB requests. DMM works without a proxy.</string>
   <string name="jav_library_proxy_host_title">Proxy host</string>
   <string name="jav_library_proxy_host_placeholder">127.0.0.1</string>
   <string name="jav_library_proxy_port_title">Proxy port</string>
@@ -906,10 +909,10 @@
   <string name="jav_library_proxy_username_title">Proxy username</string>
   <string name="jav_library_proxy_password_title">Proxy password</string>
   <string name="jav_library_user_agent_title">Custom User-Agent</string>
-  <string name="jav_library_user_agent_summary">Used for JavBus requests. Leave blank for the built-in browser user agent.</string>
+  <string name="jav_library_user_agent_summary">Used for JavBus, JavDB, and DMM requests. Leave blank for the built-in browser user agent.</string>
   <string name="jav_library_user_agent_placeholder">Mozilla/5.0 …</string>
   <string name="jav_library_section_about">About</string>
-  <string name="jav_library_about_text">JAV sources are for personal use. Requests are rate-limited and require a valid JavBus cookie. Only metadata and covers are stored locally.</string>
+  <string name="jav_library_about_text">JAV sources are for personal use. JavBus and JavDB follow the proxy setting; DMM/FANZA is a public catalogue that needs no account. Only metadata and covers are stored locally.</string>
   <string name="jav_library_not_found_title">JAV item not found</string>
   <string name="jav_library_not_found_message">The file may have been removed or the code changed.</string>
   <string name="jav_library_loading_message">Reading local files and cached metadata.</string>
