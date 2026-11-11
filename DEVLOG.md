@@ -27,7 +27,7 @@
 - **Decision**: Added `JavCover`, an optional `onImageLoaded` callback on `StreamingImage`, adaptive ratios in `JavListRow` with `animateContentSize`, 3:2 `JavCover` in `JavGridCard` and the JAV detail hero, and 12 dp list spacing. No scraping, database, or cover-file changes.
 - **Files**: `app/src/main/java/app/aryan447/mpvium/ui/jav/JavCover.kt`, `JavLibraryScreen.kt`, `JavDetailScreen.kt`, `app/src/main/java/app/aryan447/mpvium/ui/streaming/components/StreamingImageLoader.kt`, `CHANGELOG.md`
 - **Risks**: `Modifier.blur` is a no-op below Android 12 (the scrim still fills the bars); list rows have variable heights; each grid/detail cover composes two `StreamingImage`s, though they share the artwork memory cache; a full-width 3:2 detail hero is tall on tablets.
-- **Verification**: Pending static checks, CI build, and device screenshots.
+- **Verification**: `git diff --check` clean. CI run 42960233740 passed on `codex/20261111-jav-cover-layout`; the universal APK is at `dist-apk/app-standard-release.apk` (100,956,312 bytes, SHA-256 `A28736D2F464F4EFFF24ADEF587EA38CCA243A4775A74239D2C170F6EF9B3697`), with `JavCover`/`JavListRow`/`onImageLoaded` present in the dex and a valid APK signing block. Device screenshots (list/grid/detail, 3:2/4:3/16:9, light/dark) are pending.
 - **Lesson**: The previous layout rework assumed portrait movie-style posters; JAV sources return landscape package images, so the frame has to follow the artwork rather than the movie-poster convention.
 
 ## [2026-11-11 12:00] Change #6: Restore JAV scraping without an account
