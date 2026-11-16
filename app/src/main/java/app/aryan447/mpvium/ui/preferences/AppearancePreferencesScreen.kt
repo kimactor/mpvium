@@ -69,6 +69,7 @@ import app.aryan447.mpvium.ui.preferences.components.ThemePicker
 import app.aryan447.mpvium.ui.theme.AppTheme
 import app.aryan447.mpvium.ui.theme.DarkMode
 import app.aryan447.mpvium.ui.theme.spacing
+import app.aryan447.mpvium.ui.utils.LocalBackStack
 import kotlin.math.roundToInt
 import kotlinx.serialization.Serializable
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
@@ -95,7 +96,10 @@ object AppearancePreferencesScreen : Screen {
             AppLanguage.CHINESE to stringResource(R.string.pref_language_chinese),
         )
         val appTheme by preferences.appTheme.collectAsState()
+        val customThemes by preferences.customThemes.collectAsState()
+        val selectedCustomThemeId by preferences.selectedCustomThemeId.collectAsState()
         val haptic = LocalHapticFeedback.current
+        val backstack = LocalBackStack.current
 
         val unifiedTitlesTab by preferences.unifiedTitlesTab.collectAsState()
         val bottomNavTabs by preferences.bottomNavTabs.collectAsState()
@@ -219,7 +223,13 @@ object AppearancePreferencesScreen : Screen {
                             ThemePicker(
                                 currentTheme = appTheme,
                                 isDarkMode = isDarkMode,
-                                onThemeSelected = { preferences.appTheme.set(it) },
+                                onThemeSelected = { preferences.selectTheme(it) },
+                                customThemes = customThemes,
+                                selectedCustomThemeId = selectedCustomThemeId,
+                                onCustomThemeSelected = { preferences.selectCustomTheme(it) },
+                                onCreateTheme = { backstack.add(MyCanvasScreen()) },
+                                onEditCustomTheme = { backstack.add(MyCanvasScreen(themeId = it.id)) },
+                                onDeleteCustomTheme = { preferences.deleteCustomTheme(it.id) },
                                 modifier = Modifier.padding(vertical = 8.dp),
                             )
 

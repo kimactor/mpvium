@@ -194,10 +194,10 @@ object SearchablePreferences {
                 screen = PlayerControlsPreferencesScreen,
             ))
             add(SearchablePreference(
-                key = "player.controls.hide_buttons_background",
-                titleRes = R.string.pref_appearance_hide_player_buttons_background_title,
-                summaryRes = R.string.pref_appearance_hide_player_buttons_background_summary,
-                keywords = listOf("hide", "background", "buttons", "transparent", "player"),
+                key = "player.controls.buttons_background",
+                titleRes = R.string.pref_appearance_player_buttons_background_title,
+                summaryRes = R.string.pref_appearance_player_buttons_background_summary,
+                keywords = listOf("background", "buttons", "circle", "controls", "transparent", "player"),
                 category = "Appearance",
                 screen = PlayerControlsPreferencesScreen,
             ))
@@ -858,6 +858,14 @@ object SearchablePreferences {
                 keywords = listOf("lean", "seek", "cache", "demuxer", "ram", "buffer", "fast", "scrub"),
                 category = "Advanced",
                 screen = AdvancedPreferencesScreen,
+            ))
+            add(SearchablePreference(
+                key = "advanced.custom_buttons",
+                titleRes = R.string.pref_custom_buttons_title,
+                summaryRes = R.string.pref_custom_buttons_summary,
+                keywords = listOf("custom", "lua", "buttons", "scripts", "commands", "mpv", "script-binding", "overlay"),
+                category = "Advanced",
+                screen = CustomButtonsScreen,
             ))
 
             // JAV library

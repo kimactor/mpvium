@@ -89,6 +89,7 @@ import kotlin.math.roundToInt
 import app.aryan447.mpvium.R
 import app.aryan447.mpvium.preferences.AppearancePreferences
 import app.aryan447.mpvium.preferences.AudioPreferences
+import app.aryan447.mpvium.preferences.CustomScriptButton
 import app.aryan447.mpvium.preferences.PlayerLayout
 import app.aryan447.mpvium.preferences.PlayerPreferences
 import app.aryan447.mpvium.preferences.preference.collectAsState
@@ -106,6 +107,7 @@ import app.aryan447.mpvium.ui.player.VideoAspect
 import app.aryan447.mpvium.ui.player.controls.components.BrightnessSlider
 import app.aryan447.mpvium.ui.player.controls.components.CompactSpeedIndicator
 import app.aryan447.mpvium.ui.player.controls.components.ControlsButton
+import app.aryan447.mpvium.ui.player.controls.components.CustomButtonsRow
 import app.aryan447.mpvium.ui.player.controls.components.HoldControlsPlayerUpdate
 import app.aryan447.mpvium.ui.player.controls.components.IntroSkipChip
 import app.aryan447.mpvium.ui.player.controls.components.MultipleSpeedPlayerUpdate
@@ -140,7 +142,7 @@ val LocalPlayerButtonsClickEvent = staticCompositionLocalOf { {} }
  * seekbar, transport) read this instead of injecting preferences again.
  */
 @Suppress("CompositionLocalAllowlist")
-val LocalPlayerLayout = staticCompositionLocalOf { PlayerLayout.CLASSIC }
+val LocalPlayerLayout = staticCompositionLocalOf { PlayerLayout.MODERN }
 
 fun <T> playerControlsExitAnimationSpec(): FiniteAnimationSpec<T> =
   tween(
@@ -171,8 +173,8 @@ fun PlayerControls(
   val appearancePreferences = koinInject<AppearancePreferences>()
   val playerLayout by appearancePreferences.playerLayout.collectAsState()
   val isModern = playerLayout == PlayerLayout.MODERN
-  val rawHideBackground by appearancePreferences.hidePlayerButtonsBackground.collectAsState()
-  val hideBackground = rawHideBackground || isModern
+  val showButtonsBackground by appearancePreferences.playerButtonsBackground.collectAsState()
+  val hideBackground = !showButtonsBackground
   val amoledMode by appearancePreferences.amoledMode.collectAsState()
   val playerFullColors by appearancePreferences.playerFullColors.collectAsState()
   val playerPreferences = koinInject<PlayerPreferences>()
@@ -182,6 +184,10 @@ fun PlayerControls(
   val showSystemNavigationBar by playerPreferences.showSystemNavigationBar.collectAsState()
   val advancedPreferences = koinInject<AdvancedPreferences>()
   val leanSeekCache by advancedPreferences.leanSeekCache.collectAsState()
+  val rawCustomButtons by advancedPreferences.customScriptButtons.collectAsState()
+  val customButtons = remember(rawCustomButtons) {
+    CustomScriptButton.decode(rawCustomButtons).filter { it.enabled }
+  }
   val cacheRanges by viewModel.cacheRanges.collectAsState()
   val forwardCacheDuration by viewModel.forwardCacheDuration.collectAsState()
   val interactionSource = remember { MutableInteractionSource() }
@@ -408,7 +414,7 @@ fun PlayerControls(
         val (topLeftControls, topRightControls) = createRefs()
         val (volumeSlider, brightnessSlider) = createRefs()
         val unlockControlsButton = createRef()
-        val (bottomRightControls, bottomLeftControls) = createRefs()
+        val (bottomRightControls, bottomLeftControls, customButtonsRef) = createRefs()
         val playerPauseButton = createRef()
         val seekbar = createRef()
         val (playerUpdates) = createRefs()
@@ -857,13 +863,22 @@ fun PlayerControls(
             },
             mediaTitle = lookupRaw,
             tmdbEpisodeTitle = tmdbEpisodeTitle,
+            showEpisodeHeader = showEpisodeHeader,
+            titleMode = titleMode,
             topRightButtons = topRightButtons,
             bottomRightButtons = bottomRightButtons,
             actionButtons = modernActionButtons,
             amoledMode = amoledMode,
+            showButtonsBackground = showButtonsBackground,
             showSystemStatusBar = showSystemStatusBar,
             showSystemNavigationBar = showSystemNavigationBar,
             tabletBottomOffset = tabletBottomOffset,
+            isSpeedNonOne = isSpeedNonOne,
+            playbackSpeed = playbackSpeed ?: 1f,
+            currentZoom = currentZoom,
+            aspect = aspect,
+            decoder = decoder,
+            customButtons = customButtons,
             modifier = Modifier.fillMaxSize(),
           )
         }
@@ -1199,7 +1214,7 @@ fun PlayerControls(
           modifier =
             Modifier
               .then(
-                if (showSystemStatusBar) {
+                if (showSystemStatusBar && (isPortrait || isModern)) {
                   Modifier.windowInsetsPadding(WindowInsets.statusBars)
                 } else {
                   Modifier
@@ -1252,14 +1267,22 @@ fun PlayerControls(
           modifier =
             Modifier
               .then(
-                if (showSystemStatusBar) {
+                if (showSystemStatusBar && smartSkip == null && (isPortrait || isModern)) {
                   Modifier.windowInsetsPadding(WindowInsets.statusBars)
                 } else {
                   Modifier
                 }
               )
               .constrainAs(shaderPeekButton) {
-                top.linkTo(introSkipButton.bottom, 8.dp)
+                if (smartSkip != null) {
+                  top.linkTo(introSkipButton.bottom, 8.dp)
+                } else if (isPortrait) {
+                  top.linkTo(parent.top, 96.dp)
+                } else if (isModern) {
+                  top.linkTo(parent.top, if (showSystemStatusBar) 76.dp else 68.dp)
+                } else {
+                  top.linkTo(topRightControls.bottom, 12.dp)
+                }
                 end.linkTo(parent.end, spacing.large)
               },
         ) {
@@ -1421,6 +1444,33 @@ fun PlayerControls(
             viewModel = viewModel,
             activity = activity,
           )
+        }
+
+        if (customButtons.isNotEmpty()) {
+          AnimatedVisibility(
+            visible = controlsShown && !areControlsLocked && !areSlidersShown && !isModern,
+            enter = fadeIn(playerControlsEnterAnimationSpec()),
+            exit = fadeOut(playerControlsExitAnimationSpec()),
+            modifier =
+              Modifier.constrainAs(customButtonsRef) {
+                if (isPortrait) {
+                  bottom.linkTo(seekbar.top, spacing.small)
+                } else {
+                  bottom.linkTo(bottomLeftControls.top, spacing.small)
+                }
+                start.linkTo(parent.start, spacing.large)
+                end.linkTo(parent.end, spacing.large)
+                width = Dimension.fillToConstraints
+              },
+          ) {
+            CustomButtonsRow(
+              buttons = customButtons,
+              onExecute = { cmd -> viewModel.executeCustomCommand(cmd) },
+              resetControlsTimestamp = { resetControlsTimestamp = System.currentTimeMillis() },
+              surfaceColor = if (amoledMode) Color(0xCC0A0B0E) else Color(0x9916181D),
+              borderStroke = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f)),
+            )
+          }
         }
 
       }

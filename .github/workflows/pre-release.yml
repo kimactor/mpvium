@@ -21,7 +21,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'adopt'
           java-version: 17
@@ -118,7 +118,7 @@ jobs:
             preview/mpvium-preview-armeabi-v7a-${{ env.VERSION_TAG }}.apk
             preview/mpvium-preview-x86-${{ env.VERSION_TAG }}.apk
             preview/mpvium-preview-x86_64-${{ env.VERSION_TAG }}.apk
-          draft: false
+          draft: true
           prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -105,15 +105,20 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.aryan447.mpvium.preferences.AppearancePreferences
+import app.aryan447.mpvium.preferences.CustomScriptButton
 import app.aryan447.mpvium.preferences.PlayerButton
 import app.aryan447.mpvium.preferences.SeekbarStyle
 import app.aryan447.mpvium.preferences.preference.collectAsState
 import app.aryan447.mpvium.ui.player.Panels
 import app.aryan447.mpvium.ui.player.PlayerActivity
+import app.aryan447.mpvium.ui.player.PlayerTitleMode
 import app.aryan447.mpvium.ui.player.PlayerViewModel
 import app.aryan447.mpvium.ui.player.SeekCacheResolver
 import app.aryan447.mpvium.ui.player.Sheets
 import app.aryan447.mpvium.ui.player.VideoAspect
+import app.aryan447.mpvium.ui.player.controls.components.CustomButtonsRow
+import app.aryan447.mpvium.ui.player.controls.components.transportShadow
+import app.aryan447.mpvium.utils.media.EpisodeTitleFormatter
 import app.aryan447.mpvium.utils.media.MediaInfoParser
 import dev.vivvvek.seeker.Segment
 import `is`.xyz.mpv.Utils
@@ -124,7 +129,7 @@ import org.koin.compose.koinInject
 import kotlin.math.roundToInt
 
 /**
- * Modern player layout modeled after the Apple TV+ native interface.
+ * Modern player layout: unobstructed video with floating glass controls.
  *
  * Characteristics:
  * - Top-left: Floating dark glass pill with Close (✕) and PiP buttons.
@@ -165,13 +170,22 @@ fun ModernPlayerControls(
   onToggleInvertDuration: () -> Unit,
   mediaTitle: String = "",
   tmdbEpisodeTitle: String? = null,
+  showEpisodeHeader: Boolean = true,
+  titleMode: PlayerTitleMode = PlayerTitleMode.TwoLine,
   topRightButtons: List<PlayerButton> = emptyList(),
   bottomRightButtons: List<PlayerButton> = emptyList(),
   actionButtons: List<PlayerButton> = emptyList(),
   amoledMode: Boolean = false,
+  showButtonsBackground: Boolean = false,
   showSystemStatusBar: Boolean = false,
   showSystemNavigationBar: Boolean = false,
   tabletBottomOffset: Dp = 0.dp,
+  isSpeedNonOne: Boolean = false,
+  playbackSpeed: Float = 1f,
+  currentZoom: Float = 1f,
+  aspect: VideoAspect = VideoAspect.Fit,
+  decoder: app.aryan447.mpvium.ui.player.Decoder = app.aryan447.mpvium.ui.player.Decoder.SW,
+  customButtons: List<CustomScriptButton> = emptyList(),
   modifier: Modifier = Modifier,
 ) {
   val haptic = LocalHapticFeedback.current
@@ -201,24 +215,14 @@ fun ModernPlayerControls(
   val surfaceColor = if (amoledMode) Color(0xCC0A0B0E) else Color(0x9916181D)
   val borderStroke = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f))
 
-  // Parse title to identify TV show vs Movie
-  val parsedInfo = remember(mediaTitle) {
-    if (mediaTitle.isNotBlank() && !mediaTitle.contains("://")) {
-      MediaInfoParser.parse(mediaTitle)
+  // Clean titles & title formatting for Modern player
+  val cleanTitle = remember(mediaTitle, tmdbEpisodeTitle, showEpisodeHeader) {
+    if (showEpisodeHeader && mediaTitle.isNotBlank()) {
+      EpisodeTitleFormatter.resolve(mediaTitle, tmdbEpisodeTitle)
     } else {
       null
     }
   }
-
-  val isTvShow = parsedInfo?.type == "tv"
-  val episodeTitle = if (isTvShow) {
-    parsedInfo?.episodeTitle?.takeIf { it.isNotBlank() }
-      ?: tmdbEpisodeTitle?.takeIf { it.isNotBlank() }
-      ?: (if (parsedInfo?.season != null && parsedInfo.episode != null) "S${parsedInfo.season}:E${parsedInfo.episode}" else null)
-  } else {
-    null
-  }
-  val seriesOrMovieTitle = parsedInfo?.title?.takeIf { it.isNotBlank() } ?: mediaTitle
 
   Box(
     modifier = modifier.fillMaxSize(),
@@ -327,6 +331,7 @@ fun ModernPlayerControls(
         },
         surfaceColor = surfaceColor,
         borderStroke = borderStroke,
+        showBackground = showButtonsBackground,
       )
     }
 
@@ -349,20 +354,33 @@ fun ModernPlayerControls(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(10.dp),
       ) {
+        if (customButtons.isNotEmpty()) {
+          CustomButtonsRow(
+            buttons = customButtons,
+            onExecute = { cmd -> viewModel.executeCustomCommand(cmd) },
+            resetControlsTimestamp = resetControlsTimestamp,
+            surfaceColor = surfaceColor,
+            borderStroke = borderStroke,
+          )
+        }
+
         // Row above seekbar: Title on left, Actions pill on right
         Row(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.Bottom,
         ) {
-          // Title Block (Episode name on top, Series name below with chevron; or Movie name only)
-          if (isTvShow && episodeTitle != null) {
+          // Title Block (Two-line for TV show / subtitle, or single-line for movie / single-line mode / raw title)
+          val hasSubtitle = cleanTitle?.subtitle != null
+          val showTwoLines = showEpisodeHeader && titleMode == PlayerTitleMode.TwoLine && hasSubtitle
+
+          if (showTwoLines && cleanTitle != null && cleanTitle.subtitle != null) {
             Column(
               verticalArrangement = Arrangement.spacedBy(2.dp),
               modifier = Modifier.weight(1f, fill = false),
             ) {
               Text(
-                text = episodeTitle,
+                text = cleanTitle.subtitle,
                 style = MaterialTheme.typography.bodyMedium.copy(
                   color = Color.White.copy(alpha = 0.80f),
                   fontWeight = FontWeight.Normal,
@@ -388,7 +406,7 @@ fun ModernPlayerControls(
                   },
               ) {
                 Text(
-                  text = seriesOrMovieTitle,
+                  text = cleanTitle.title,
                   style = MaterialTheme.typography.titleLarge.copy(
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
@@ -407,21 +425,48 @@ fun ModernPlayerControls(
               }
             }
           } else {
-            // Movie: Single line with movie name only
+            val displayText = when {
+              !showEpisodeHeader || cleanTitle == null -> mediaTitle
+              titleMode == PlayerTitleMode.EpisodeOnly -> cleanTitle.detailOnly
+              titleMode == PlayerTitleMode.SingleLine -> cleanTitle.singleLine
+              else -> cleanTitle.title
+            }
             Column(
               modifier = Modifier.weight(1f, fill = false),
             ) {
-              Text(
-                text = seriesOrMovieTitle,
-                style = MaterialTheme.typography.titleLarge.copy(
-                  color = Color.White,
-                  fontWeight = FontWeight.Bold,
-                  fontSize = 20.sp,
-                  shadow = Shadow(color = Color.Black.copy(alpha = 0.6f), blurRadius = 6f),
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-              )
+              Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                modifier = Modifier
+                  .clip(RoundedCornerShape(4.dp))
+                  .clickable {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    resetControlsTimestamp()
+                    if (viewModel.hasPlaylistSupport()) {
+                      onOpenSheet(Sheets.Playlist)
+                    } else {
+                      onOpenSheet(Sheets.Chapters)
+                    }
+                  },
+              ) {
+                Text(
+                  text = displayText,
+                  style = MaterialTheme.typography.titleLarge.copy(
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 19.sp,
+                    shadow = Shadow(color = Color.Black.copy(alpha = 0.6f), blurRadius = 6f),
+                  ),
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis,
+                )
+                Icon(
+                  imageVector = Icons.Filled.ChevronRight,
+                  contentDescription = "Episodes / Chapters",
+                  tint = Color.White.copy(alpha = 0.80f),
+                  modifier = Modifier.size(22.dp),
+                )
+              }
             }
           }
 
@@ -459,6 +504,11 @@ fun ModernPlayerControls(
             surfaceColor = surfaceColor,
             borderStroke = borderStroke,
             resetControlsTimestamp = resetControlsTimestamp,
+            isSpeedNonOne = isSpeedNonOne,
+            playbackSpeed = playbackSpeed,
+            currentZoom = currentZoom,
+            aspect = aspect,
+            decoder = decoder,
           )
         }
 
@@ -535,25 +585,27 @@ fun ModernTopRightControls(
   val isBrightnessSliderShown by viewModel.isBrightnessSliderShown.collectAsState()
 
   var showVolumeNumberTemporarily by remember { mutableStateOf(false) }
+  var showBrightnessNumberTemporarily by remember { mutableStateOf(false) }
   var lastObservedVolume by remember { mutableIntStateOf(currentVolume) }
   LaunchedEffect(currentVolume) {
     if (lastObservedVolume != currentVolume) {
       lastObservedVolume = currentVolume
+      showBrightnessNumberTemporarily = false
       activeTarget = ModernTopRightTarget.VOLUME
       showVolumeNumberTemporarily = true
-      delay(1500)
+      delay(1000)
       showVolumeNumberTemporarily = false
     }
   }
 
-  var showBrightnessNumberTemporarily by remember { mutableStateOf(false) }
   var lastObservedBrightness by remember { mutableFloatStateOf(currentBrightness) }
   LaunchedEffect(currentBrightness) {
     if (kotlin.math.abs(lastObservedBrightness - currentBrightness) > 0.005f) {
       lastObservedBrightness = currentBrightness
+      showVolumeNumberTemporarily = false
       activeTarget = ModernTopRightTarget.BRIGHTNESS
       showBrightnessNumberTemporarily = true
-      delay(1500)
+      delay(1000)
       showBrightnessNumberTemporarily = false
       if (!isBrightnessSliderShown) {
         activeTarget = ModernTopRightTarget.VOLUME
@@ -564,7 +616,9 @@ fun ModernTopRightControls(
   LaunchedEffect(isBrightnessSliderShown) {
     if (isBrightnessSliderShown) {
       activeTarget = ModernTopRightTarget.BRIGHTNESS
+      showVolumeNumberTemporarily = false
     } else {
+      showBrightnessNumberTemporarily = false
       activeTarget = ModernTopRightTarget.VOLUME
     }
   }
@@ -572,8 +626,17 @@ fun ModernTopRightControls(
   LaunchedEffect(isVolumeSliderShown) {
     if (isVolumeSliderShown) {
       activeTarget = ModernTopRightTarget.VOLUME
+      showBrightnessNumberTemporarily = false
+    } else {
+      showVolumeNumberTemporarily = false
     }
   }
+
+  val isVolumeAdjusting = isScrubbingVolume || showVolumeNumberTemporarily || isVolumeSliderShown
+  val isBrightnessAdjusting = isScrubbingBrightness || showBrightnessNumberTemporarily || isBrightnessSliderShown
+
+  val showBrightnessIconOnVolume = isBrightnessAdjusting && !isVolumeAdjusting
+  val showVolumeIconOnBrightness = isVolumeAdjusting && !isBrightnessAdjusting
 
   var volTrackWidthPx by remember { mutableIntStateOf(0) }
   var briTrackWidthPx by remember { mutableIntStateOf(0) }
@@ -623,6 +686,8 @@ fun ModernTopRightControls(
               onClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 resetControlsTimestamp()
+                showBrightnessNumberTemporarily = false
+                viewModel.isBrightnessSliderShown.value = false
                 activeTarget = ModernTopRightTarget.VOLUME
               },
             )
@@ -645,8 +710,8 @@ fun ModernTopRightControls(
             contentAlignment = Alignment.Center,
           ) {
             Icon(
-              imageVector = speakerIcon,
-              contentDescription = "Switch to Volume slider",
+              imageVector = if (showBrightnessIconOnVolume) Icons.Default.BrightnessMedium else speakerIcon,
+              contentDescription = if (showBrightnessIconOnVolume) "Brightness" else "Switch to Volume slider",
               tint = Color.White,
               modifier = Modifier.size(20.dp),
             )
@@ -674,6 +739,7 @@ fun ModernTopRightControls(
                       val newVol = (fraction * maxVolume).roundToInt()
                       viewModel.changeVolumeTo(newVol)
                       if (newVol > 0) previousVolume = newVol
+                      viewModel.displayVolumeSlider()
                     }
                   }
                 }
@@ -681,6 +747,8 @@ fun ModernTopRightControls(
                   detectDragGestures(
                     onDragStart = { offset ->
                       isScrubbingVolume = true
+                      showBrightnessNumberTemporarily = false
+                      viewModel.isBrightnessSliderShown.value = false
                       haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                       resetControlsTimestamp()
                       if (volTrackWidthPx > 0) {
@@ -692,9 +760,11 @@ fun ModernTopRightControls(
                     },
                     onDragEnd = {
                       isScrubbingVolume = false
+                      viewModel.displayVolumeSlider()
                     },
                     onDragCancel = {
                       isScrubbingVolume = false
+                      viewModel.displayVolumeSlider()
                     },
                     onDrag = { change, _ ->
                       change.consume()
@@ -743,7 +813,7 @@ fun ModernTopRightControls(
               modifier = Modifier.widthIn(min = 28.dp),
               contentAlignment = Alignment.Center,
             ) {
-              if (isScrubbingVolume || showVolumeNumberTemporarily || isVolumeSliderShown) {
+              if (isVolumeAdjusting) {
                 Text(
                   text = "${(volumeFraction * 100).roundToInt()}%",
                   style = MaterialTheme.typography.labelSmall.copy(
@@ -794,6 +864,8 @@ fun ModernTopRightControls(
               onClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 resetControlsTimestamp()
+                showVolumeNumberTemporarily = false
+                viewModel.isVolumeSliderShown.value = false
                 activeTarget = ModernTopRightTarget.BRIGHTNESS
               },
             )
@@ -816,8 +888,8 @@ fun ModernTopRightControls(
             contentAlignment = Alignment.Center,
           ) {
             Icon(
-              imageVector = Icons.Default.BrightnessMedium,
-              contentDescription = "Switch to Brightness slider",
+              imageVector = if (showVolumeIconOnBrightness) speakerIcon else Icons.Default.BrightnessMedium,
+              contentDescription = if (showVolumeIconOnBrightness) "Volume" else "Switch to Brightness slider",
               tint = Color.White,
               modifier = Modifier.size(20.dp),
             )
@@ -843,6 +915,7 @@ fun ModernTopRightControls(
                     if (briTrackWidthPx > 0) {
                       val fraction = (offset.x / briTrackWidthPx).coerceIn(0f, 1f)
                       viewModel.changeBrightnessTo(fraction)
+                      viewModel.displayBrightnessSlider()
                     }
                   }
                 }
@@ -850,6 +923,8 @@ fun ModernTopRightControls(
                   detectDragGestures(
                     onDragStart = { offset ->
                       isScrubbingBrightness = true
+                      showVolumeNumberTemporarily = false
+                      viewModel.isVolumeSliderShown.value = false
                       haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                       resetControlsTimestamp()
                       if (briTrackWidthPx > 0) {
@@ -859,9 +934,11 @@ fun ModernTopRightControls(
                     },
                     onDragEnd = {
                       isScrubbingBrightness = false
+                      viewModel.displayBrightnessSlider()
                     },
                     onDragCancel = {
                       isScrubbingBrightness = false
+                      viewModel.displayBrightnessSlider()
                     },
                     onDrag = { change, _ ->
                       change.consume()
@@ -908,7 +985,7 @@ fun ModernTopRightControls(
               modifier = Modifier.widthIn(min = 28.dp),
               contentAlignment = Alignment.Center,
             ) {
-              if (isScrubbingBrightness || showBrightnessNumberTemporarily || isBrightnessSliderShown) {
+              if (isBrightnessAdjusting) {
                 Text(
                   text = "${(brightnessFraction * 100).roundToInt()}%",
                   style = MaterialTheme.typography.labelSmall.copy(
@@ -965,6 +1042,7 @@ fun ModernCenterTransportControls(
   onForward: () -> Unit,
   surfaceColor: Color,
   borderStroke: BorderStroke,
+  showBackground: Boolean = false,
   modifier: Modifier = Modifier,
 ) {
   val haptic = LocalHapticFeedback.current
@@ -986,17 +1064,24 @@ fun ModernCenterTransportControls(
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             onRewind()
           },
+        )
+        .then(
+          if (!showBackground) {
+            Modifier.background(brush = transportShadow, shape = CircleShape)
+          } else {
+            Modifier
+          },
         ),
       shape = CircleShape,
-      color = surfaceColor,
-      border = borderStroke,
+      color = if (showBackground) surfaceColor else Color.Transparent,
+      border = if (showBackground) borderStroke else null,
     ) {
       Box(contentAlignment = Alignment.Center) {
         Icon(
           imageVector = Icons.Outlined.Replay10,
           contentDescription = "Rewind 10 seconds",
           tint = Color.White,
-          modifier = Modifier.size(25.dp),
+          modifier = Modifier.size(if (showBackground) 25.dp else 28.dp),
         )
       }
     }
@@ -1013,17 +1098,24 @@ fun ModernCenterTransportControls(
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             onPlayPause()
           },
+        )
+        .then(
+          if (!showBackground) {
+            Modifier.background(brush = transportShadow, shape = CircleShape)
+          } else {
+            Modifier
+          },
         ),
       shape = CircleShape,
-      color = surfaceColor,
-      border = borderStroke,
+      color = if (showBackground) surfaceColor else Color.Transparent,
+      border = if (showBackground) borderStroke else null,
     ) {
       Box(contentAlignment = Alignment.Center) {
         Icon(
           imageVector = if (paused) Icons.Default.PlayArrow else Icons.Default.Pause,
           contentDescription = if (paused) "Play" else "Pause",
           tint = Color.White,
-          modifier = Modifier.size(36.dp),
+          modifier = Modifier.size(if (showBackground) 36.dp else 42.dp),
         )
       }
     }
@@ -1040,17 +1132,24 @@ fun ModernCenterTransportControls(
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             onForward()
           },
+        )
+        .then(
+          if (!showBackground) {
+            Modifier.background(brush = transportShadow, shape = CircleShape)
+          } else {
+            Modifier
+          },
         ),
       shape = CircleShape,
-      color = surfaceColor,
-      border = borderStroke,
+      color = if (showBackground) surfaceColor else Color.Transparent,
+      border = if (showBackground) borderStroke else null,
     ) {
       Box(contentAlignment = Alignment.Center) {
         Icon(
           imageVector = Icons.Outlined.Forward10,
           contentDescription = "Forward 10 seconds",
           tint = Color.White,
-          modifier = Modifier.size(25.dp),
+          modifier = Modifier.size(if (showBackground) 25.dp else 28.dp),
         )
       }
     }
@@ -1078,6 +1177,12 @@ fun ModernBottomActionsPill(
   surfaceColor: Color,
   borderStroke: BorderStroke,
   resetControlsTimestamp: () -> Unit = {},
+  isSpeedNonOne: Boolean = false,
+  playbackSpeed: Float = 1f,
+  currentZoom: Float = 1f,
+  aspect: VideoAspect = VideoAspect.Fit,
+  decoder: app.aryan447.mpvium.ui.player.Decoder = app.aryan447.mpvium.ui.player.Decoder.SW,
+  customButtons: List<CustomScriptButton> = emptyList(),
   modifier: Modifier = Modifier,
 ) {
   val haptic = LocalHapticFeedback.current
@@ -1189,13 +1294,13 @@ fun ModernBottomActionsPill(
                 chapters = chapters,
                 currentChapter = currentChapter,
                 isPortrait = false,
-                isSpeedNonOne = false,
-                currentZoom = 1f,
-                aspect = VideoAspect.Fit,
+                isSpeedNonOne = isSpeedNonOne,
+                currentZoom = currentZoom,
+                aspect = aspect,
                 mediaTitle = null,
                 hideBackground = true,
-                decoder = app.aryan447.mpvium.ui.player.Decoder.SW,
-                playbackSpeed = 1f,
+                decoder = decoder,
+                playbackSpeed = playbackSpeed,
                 onBackPress = {},
                 onOpenSheet = { sheet ->
                   haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -1209,7 +1314,7 @@ fun ModernBottomActionsPill(
                 },
                 viewModel = viewModel,
                 activity = activity,
-                buttonSize = 28.dp,
+                buttonSize = 30.dp,
               )
             } else {
               Icon(
@@ -1253,6 +1358,10 @@ fun ModernSeekbarSection(
   modifier: Modifier = Modifier,
 ) {
   val haptic = LocalHapticFeedback.current
+  var isDragging by remember { mutableStateOf(false) }
+  var dragPosition by remember { mutableFloatStateOf(position) }
+
+  val effectivePosition = if (isDragging) dragPosition else position
 
   Column(
     modifier = modifier
@@ -1268,7 +1377,11 @@ fun ModernSeekbarSection(
       cacheRanges = cacheRanges,
       isPaused = isPaused,
       onSeekTo = onSeekTo,
-      onSeekingChanged = onSeekingChanged,
+      onSeekingChanged = { seeking ->
+        isDragging = seeking
+        onSeekingChanged(seeking)
+      },
+      onDragPositionChange = { dragPosition = it },
     )
 
     // Timers row
@@ -1279,7 +1392,7 @@ fun ModernSeekbarSection(
     ) {
       // Current position timer
       Text(
-        text = Utils.prettyTime(position.toInt(), false),
+        text = Utils.prettyTime(effectivePosition.toInt(), false),
         style = MaterialTheme.typography.labelSmall.copy(
           fontFamily = FontFamily.Monospace,
           fontWeight = FontWeight.Medium,
@@ -1290,7 +1403,7 @@ fun ModernSeekbarSection(
       )
 
       // Remaining / total duration timer
-      val rightTimerValue = if (invertDuration) position - duration else duration
+      val rightTimerValue = if (invertDuration) effectivePosition - duration else duration
       val durationFormatted = Utils.prettyTime(rightTimerValue.toInt(), invertDuration)
 
       Text(
@@ -1327,6 +1440,7 @@ fun ModernSeekbarTrack(
   isPaused: Boolean = false,
   onSeekTo: (Float, Boolean) -> Unit,
   onSeekingChanged: (Boolean) -> Unit,
+  onDragPositionChange: (Float) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   val appearancePreferences = koinInject<AppearancePreferences>()
@@ -1349,6 +1463,7 @@ fun ModernSeekbarTrack(
   val latestPosition by rememberUpdatedState(position)
   val latestOnSeekTo by rememberUpdatedState(onSeekTo)
   val latestOnSeekingChanged by rememberUpdatedState(onSeekingChanged)
+  val latestOnDragPositionChange by rememberUpdatedState(onDragPositionChange)
 
   val displayPosition = if (isDragging) dragPosition else position
   val playedFraction = if (duration > 0f) (displayPosition / duration).coerceIn(0f, 1f) else 0f
@@ -1443,6 +1558,7 @@ fun ModernSeekbarTrack(
             verticalDragPx = 0f
             scrubTier = 0
             dragPosition = dragAnchor
+            latestOnDragPositionChange(dragPosition)
             latestOnSeekTo(dragPosition, true)
           },
           onDragEnd = {
@@ -1456,6 +1572,7 @@ fun ModernSeekbarTrack(
             latestOnSeekingChanged(false)
             scrubTier = 0
             dragPosition = latestPosition
+            latestOnDragPositionChange(dragPosition)
           },
           onDrag = { change, dragAmount ->
             change.consume()
@@ -1469,6 +1586,7 @@ fun ModernSeekbarTrack(
             val deltaFraction = scaledDragDxPx.toDouble() / trackWidthPx.toDouble()
             dragPosition = ((anchorFraction + deltaFraction) * currDuration.toDouble())
               .toFloat().coerceIn(0f, currDuration)
+            latestOnDragPositionChange(dragPosition)
             latestOnSeekTo(dragPosition, true)
           }
         )

@@ -4,7 +4,10 @@ import app.aryan447.mpvium.R
 import app.aryan447.mpvium.preferences.preference.PreferenceStore
 import app.aryan447.mpvium.preferences.preference.getEnum
 import app.aryan447.mpvium.ui.theme.AppTheme
+import app.aryan447.mpvium.ui.theme.CustomTheme
 import app.aryan447.mpvium.ui.theme.DarkMode
+import app.aryan447.mpvium.ui.theme.decodeCustomThemes
+import app.aryan447.mpvium.ui.theme.encodeCustomThemes
 
 enum class AppLanguage(val tag: String?) {
   SYSTEM(null),
@@ -18,12 +21,20 @@ class AppearancePreferences(
   val darkMode = preferenceStore.getEnum("dark_mode", DarkMode.System)
   val appLanguage = preferenceStore.getEnum("app_language", AppLanguage.SYSTEM)
   val appTheme = preferenceStore.getEnum("app_theme", AppTheme.Default)
+  val customThemes =
+    preferenceStore.getObject(
+      "custom_themes",
+      emptyList<CustomTheme>(),
+      serializer = { encodeCustomThemes(it) },
+      deserializer = { decodeCustomThemes(it) },
+    )
+  val selectedCustomThemeId = preferenceStore.getString("selected_custom_theme_id", "")
   val amoledMode = preferenceStore.getBoolean("amoled_mode", false)
   val playerFullColors = preferenceStore.getBoolean("full_player_colors", false)
   val playerLayout =
     preferenceStore.getObject(
       "player_layout",
-      PlayerLayout.CLASSIC,
+      PlayerLayout.MODERN,
       serializer = { it.name },
       deserializer = { PlayerLayout.fromString(it) },
     )
@@ -37,6 +48,8 @@ class AppearancePreferences(
     )
   val onboardingCompleted = preferenceStore.getBoolean("onboarding_completed", false)
   val unlimitedNameLines = preferenceStore.getBoolean("unlimited_name_lines", false)
+  val playerButtonsBackground = preferenceStore.getBoolean("player_buttons_background", false)
+  @Deprecated("Use playerButtonsBackground instead")
   val hidePlayerButtonsBackground = preferenceStore.getBoolean("hide_player_buttons_background", false)
   val showUnplayedOldVideoLabel = preferenceStore.getBoolean("show_unplayed_old_video_label", true)
   val unplayedOldVideoDays = preferenceStore.getInt("unplayed_old_video_days", 7)
@@ -53,8 +66,8 @@ class AppearancePreferences(
   val seekbarStyle = preferenceStore.getEnum("seekbar_style", SeekbarStyle.Wavy)
   val modernSeekbarStyle = preferenceStore.getEnum("modern_seekbar_style", SeekbarStyle.Standard)
   val chaptersInSeekbar = preferenceStore.getBoolean("chapters_in_seekbar", false)
-  val volumeSliderStyle = preferenceStore.getEnum("volume_slider_style", SeekbarStyle.Wavy)
-  val brightnessSliderStyle = preferenceStore.getEnum("brightness_slider_style", SeekbarStyle.Wavy)
+  val volumeSliderStyle = preferenceStore.getEnum("volume_slider_style", SeekbarStyle.Standard)
+  val brightnessSliderStyle = preferenceStore.getEnum("brightness_slider_style", SeekbarStyle.Standard)
 
   val topLeftControls =
     preferenceStore.getString(
@@ -93,6 +106,28 @@ class AppearancePreferences(
       "modern_action_controls",
       "SUBTITLES,AUDIO_TRACK,EXPLAIN,MORE_OPTIONS",
     )
+
+  fun selectTheme(theme: AppTheme) {
+    selectedCustomThemeId.set("")
+    appTheme.set(theme)
+  }
+
+  fun selectCustomTheme(theme: CustomTheme) {
+    appTheme.set(AppTheme.Default)
+    selectedCustomThemeId.set(theme.id)
+  }
+
+  fun saveCustomTheme(theme: CustomTheme) {
+    customThemes.set(customThemes.get().filterNot { it.id == theme.id } + theme)
+  }
+
+  fun deleteCustomTheme(themeId: String) {
+    if (selectedCustomThemeId.get() == themeId) {
+      selectedCustomThemeId.set("")
+      appTheme.set(AppTheme.Default)
+    }
+    customThemes.set(customThemes.get().filterNot { it.id == themeId })
+  }
 
   fun setHomeSectionVisible(section: HomeSection, visible: Boolean) {
     when (section) {
