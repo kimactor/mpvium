@@ -10,6 +10,8 @@ import app.aryan447.mpvium.domain.jav.JavDbPublicSource
 import app.aryan447.mpvium.domain.jav.JavHttpClientFactory
 import app.aryan447.mpvium.domain.jav.JavLibraryRepository
 import app.aryan447.mpvium.domain.jav.JavMetadataRepository
+import app.aryan447.mpvium.domain.jav.JavSubtitleRepository
+import app.aryan447.mpvium.domain.jav.SubtitleCatSource
 import app.aryan447.mpvium.domain.streaming.LibraryIndexRepository
 import app.aryan447.mpvium.domain.streaming.SeriesDetector
 import app.aryan447.mpvium.domain.streaming.StreamingArtworkStore
@@ -46,6 +48,8 @@ val domainModule = module {
     single { DmmSource(get(), get(), get()) }
     single { JavMetadataRepository(get(), get(), get(), get(), get(), get(), get(), get()) }
     single { JavLibraryRepository(get(), get(), get()) }
+    single { JavSubtitleRepository(androidContext()) }
+    single { SubtitleCatSource(get()) }
     single { StreamingArtworkStore(androidContext(), get()) }
     single { TmdbClient(get(), get(), get()) }
     single { StreamingMetadataRepository(androidContext(), get(), get(), get(), get(), get()) }

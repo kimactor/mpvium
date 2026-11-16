@@ -965,4 +965,23 @@
   <string name="jav_library_not_found_message">The file may have been removed or the code changed.</string>
   <string name="jav_library_loading_message">Reading local files and cached metadata.</string>
   <string name="jav_library_load_failed">Could not load JAV library</string>
+  <string name="jav_library_subtitles">Subtitles</string>
+  <string name="jav_library_subtitle_none">No subtitles yet. Import a local file or search online.</string>
+  <string name="jav_library_subtitle_import">Import</string>
+  <string name="jav_library_subtitle_search">Search online</string>
+  <string name="jav_library_subtitle_searching">Searching…</string>
+  <string name="jav_library_subtitle_search_failed">Subtitle search failed. Check the network or JAV proxy.</string>
+  <string name="jav_library_subtitle_no_results">No Chinese subtitles found for this code.</string>
+  <string name="jav_library_subtitle_chinese">Chinese</string>
+  <string name="jav_library_subtitle_chinese_simplified">Simplified</string>
+  <string name="jav_library_subtitle_chinese_traditional">Traditional</string>
+  <string name="jav_library_subtitle_delete">Delete subtitle</string>
+  <string name="jav_library_subtitle_imported">Imported %1$s</string>
+  <string name="jav_library_subtitle_import_failed">Could not import that file. Use an SRT, ASS, SSA, VTT, or SUB subtitle.</string>
+  <string name="jav_library_subtitle_saved">Saved %1$s</string>
+  <string name="jav_library_subtitle_download_failed">Subtitle download failed. Check the network or JAV proxy, or import the file manually.</string>
+  <string name="jav_library_subtitle_close">Close</string>
+  <string name="jav_batch_start_subtitles">Complete Chinese subtitles</string>
+  <string name="jav_batch_subtitle_result">Subtitles: %1$d saved, %2$d failed, %3$d already present</string>
+  <string name="jav_batch_subtitle_all">Every JAV item already has a Chinese subtitle</string>
 </resources>

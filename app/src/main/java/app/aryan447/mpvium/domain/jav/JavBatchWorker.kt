@@ -39,12 +39,15 @@ class JavBatchWorker(
   private val metadataRepository: JavMetadataRepository by inject()
   private val artworkStore: StreamingArtworkStore by inject()
   private val httpClientFactory: JavHttpClientFactory by inject()
+  private val subtitleRepository: JavSubtitleRepository by inject()
+  private val subtitleCatSource: SubtitleCatSource by inject()
 
   override suspend fun doWork(): Result {
     val mode = inputData.getString(JavBatchScheduler.KEY_MODE) ?: JavBatchScheduler.MODE_SCRAPE
     return try {
       when (mode) {
         JavBatchScheduler.MODE_PREFETCH -> prefetchCovers()
+        JavBatchScheduler.MODE_SUBTITLES -> fillSubtitles()
         else -> scrapeMetadata()
       }
     } catch (cancelled: CancellationException) {
@@ -225,6 +228,95 @@ class JavBatchWorker(
   private fun JavItemEntity.hasUsableCover(): Boolean =
     localCoverPath?.takeIf { it.isNotBlank() && File(it).isFile } != null ||
       manualCoverPath?.takeIf { it.isNotBlank() && File(it).isFile } != null
+
+  private suspend fun fillSubtitles(): Result {
+    libraryIndexRepository.getLibrary(force = true)
+    val files = javDao.getAllFiles()
+    if (files.isEmpty()) {
+      return Result.success(
+        workDataOf(
+          KEY_DONE to 0,
+          KEY_TOTAL to 0,
+          JavBatchScheduler.KEY_SUCCESS to 0,
+          JavBatchScheduler.KEY_FAILED to 0,
+          JavBatchScheduler.KEY_REASON to JavBatchScheduler.REASON_NO_ITEMS,
+        ),
+      )
+    }
+
+    var alreadyPresent = 0
+    val targets = mutableListOf<Pair<String, String>>()
+    files.groupBy { it.code }.forEach { (code, codeFiles) ->
+      val path = codeFiles.first().path
+      if (subtitleRepository.hasChinese(code, path)) {
+        alreadyPresent++
+      } else {
+        targets += code to path
+      }
+    }
+
+    if (targets.isEmpty()) {
+      return Result.success(
+        workDataOf(
+          KEY_DONE to 0,
+          KEY_TOTAL to 0,
+          JavBatchScheduler.KEY_SUCCESS to 0,
+          JavBatchScheduler.KEY_FAILED to 0,
+          JavBatchScheduler.KEY_ALREADY_PRESENT to alreadyPresent,
+          JavBatchScheduler.KEY_REASON to JavBatchScheduler.REASON_SUBTITLES_COMPLETE,
+        ),
+      )
+    }
+
+    var success = 0
+    var failed = 0
+    var lastError: String? = null
+    publishProgress(0, targets.size, "subtitles")
+    targets.forEachIndexed { index, (code, _) ->
+      if (isStopped) return Result.failure()
+      val candidate = try {
+        subtitleCatSource
+          .searchChinese(code, limit = 2)
+          .getOrNull()
+          ?.firstOrNull { it.preferredUrl != null }
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (_: Exception) {
+        null
+      }
+      val handle = try {
+        candidate?.let { subtitleCatSource.download(it) }
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (_: Exception) {
+        null
+      }
+      val saved = handle?.getOrNull()?.let { bytes ->
+        val language = if (candidate?.simplifiedUrl == null) "zh-TW" else "zh-CN"
+        subtitleRepository.saveDownload(code, language, bytes).getOrNull()
+      }
+      if (saved != null) {
+        success++
+      } else {
+        failed++
+        handle?.exceptionOrNull()?.message?.takeIf { it.isNotBlank() }?.let { lastError = it }
+      }
+      val done = index + 1
+      if (done == targets.size || done % 3 == 0) {
+        publishProgress(done, targets.size, code)
+      }
+    }
+    return Result.success(
+      workDataOf(
+        KEY_DONE to targets.size,
+        KEY_TOTAL to targets.size,
+        JavBatchScheduler.KEY_SUCCESS to success,
+        JavBatchScheduler.KEY_FAILED to failed,
+        JavBatchScheduler.KEY_ALREADY_PRESENT to alreadyPresent,
+        JavBatchScheduler.KEY_LAST_ERROR to lastError.orEmpty(),
+      ),
+    )
+  }
 
   private suspend fun publishProgress(done: Int, total: Int, phase: String) {
     val data = workDataOf(KEY_DONE to done, KEY_TOTAL to total, "phase" to phase)
