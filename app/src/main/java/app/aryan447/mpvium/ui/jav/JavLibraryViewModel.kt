@@ -36,10 +36,13 @@ class JavLibraryViewModel(
 
   fun refresh(forceScan: Boolean = false) {
     viewModelScope.launch {
-      _uiState.update { it.copy(isLoading = true, error = null) }
+      // Keep the current list on screen during refreshes: swapping it for a loading state
+      // disposes the LazyColumn/LazyGrid and throws away the scroll position.
+      val hadItems = _uiState.value.items.isNotEmpty()
+      _uiState.update { it.copy(isLoading = !hadItems, error = null) }
       val items = withContext(Dispatchers.IO) {
         runCatching {
-          if (forceScan) libraryIndexRepository.getLibrary(force = true)
+          if (forceScan || !hadItems) libraryIndexRepository.getLibrary(force = true)
           libraryRepository.loadItems()
         }
       }

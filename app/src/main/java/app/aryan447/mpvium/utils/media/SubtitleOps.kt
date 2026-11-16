@@ -1,6 +1,9 @@
 package app.aryan447.mpvium.utils.media
 
 import android.util.Log
+import app.aryan447.mpvium.domain.jav.JavCodeParser
+import app.aryan447.mpvium.domain.jav.JavSubtitleMatcher
+import app.aryan447.mpvium.domain.jav.JavSubtitleRepository
 import app.aryan447.mpvium.repository.NetworkRepository
 import app.aryan447.mpvium.ui.browser.networkstreaming.proxy.NetworkStreamingProxy
 import `is`.xyz.mpv.MPVLib
@@ -18,6 +21,7 @@ import java.util.Locale
 object SubtitleOps : KoinComponent {
   private const val TAG = "SubtitleOps"
   private val networkRepository: NetworkRepository by inject()
+  private val javSubtitleRepository: JavSubtitleRepository by inject()
 
   private fun shouldSkipNetworkSubtitleAutoload(videoFilePath: String, videoFileName: String): Boolean {
     val p = videoFilePath.lowercase(Locale.getDefault())
@@ -37,13 +41,30 @@ object SubtitleOps : KoinComponent {
     videoFilePath: String,
     videoFileName: String,
     networkConnectionId: Long = -1L,
+    mediaCode: String? = null,
+    videoUri: String? = null,
   ) = withContext(Dispatchers.IO) {
     try {
+      // JAV playback passes the code explicitly; otherwise infer it from a code-like filename so
+      // history and library entry points also find code-named subtitles.
+      val code =
+        mediaCode ?: JavCodeParser
+          .parse(videoFileName)
+          ?.takeIf { it.confidence >= JavCodeParser.MIN_AUTO_CONFIDENCE }
+          ?.code
+
       // Skip file descriptor URIs (these don't have a parent directory concept)
-      if (videoFilePath.startsWith("fd://")) return@withContext
+      if (videoFilePath.startsWith("fd://")) {
+        // JAV subtitles can still live in app-private storage even when the video path is an fd.
+        if (code != null) autoloadJavSubtitles(code, videoFilePath, videoUri)
+        return@withContext
+      }
 
       // For content:// URIs, we can't autoload (no access to parent directory)
-      if (videoFilePath.startsWith("content://")) return@withContext
+      if (videoFilePath.startsWith("content://")) {
+        if (code != null) autoloadJavSubtitles(code, videoFilePath, videoUri)
+        return@withContext
+      }
 
       // Check if this is a network file with connection ID (SMB/FTP/WebDAV via proxy)
       if (networkConnectionId != -1L) {
@@ -64,7 +85,11 @@ object SubtitleOps : KoinComponent {
         autoloadNetworkSubtitles(videoFilePath, videoFileName)
       } else {
         // For local files, scan the directory
-        autoloadLocalSubtitles(videoFilePath, videoFileName)
+        if (code != null) {
+          autoloadJavSubtitles(code, videoFilePath, videoUri)
+        } else {
+          autoloadLocalSubtitles(videoFilePath, videoFileName)
+        }
       }
     } catch (e: Exception) {
       Log.e(TAG, "Error loading subtitles", e)
@@ -177,6 +202,49 @@ object SubtitleOps : KoinComponent {
       }
     } catch (e: Exception) {
       Log.e(TAG, "Error autoloading network subtitles", e)
+    }
+  }
+
+  /**
+   * JAV subtitles are usually named after the release code instead of the video file, so match by
+   * code in the video folder plus the app-managed folder, and prefer a Chinese track.
+   */
+  private suspend fun autoloadJavSubtitles(
+    mediaCode: String,
+    videoFilePath: String,
+    videoUri: String?,
+  ) {
+    val videoDirectory = File(videoFilePath).takeIf { videoFilePath.startsWith("/") }?.parentFile
+    val baseName = File(videoFilePath).nameWithoutExtension
+    val baseMatches =
+      videoDirectory
+        ?.listFiles()
+        ?.filter { file ->
+          file.isFile &&
+            isSubtitleFile(file.name) &&
+            file.nameWithoutExtension.startsWith(baseName, ignoreCase = true)
+        }
+        .orEmpty()
+    val codeMatches = javSubtitleRepository.listForVideo(mediaCode, videoFilePath, videoUri).map { it.file }
+    loadJavSubtitles(codeMatches + baseMatches)
+  }
+
+  private suspend fun loadJavSubtitles(files: List<File>) {
+    val ordered =
+      files
+        .distinctBy { it.absolutePath }
+        .sortedWith(
+          compareByDescending<File> { JavSubtitleMatcher.isChineseName(it.name) }
+            .thenBy { it.name.lowercase(Locale.getDefault()) },
+        )
+    if (ordered.isEmpty()) return
+    val selectedIndex = ordered.indexOfFirst { JavSubtitleMatcher.isChineseName(it.name) }.takeIf { it >= 0 } ?: 0
+    withContext(Dispatchers.Main) {
+      ordered.forEachIndexed { index, subtitle ->
+        val flag = if (index == selectedIndex) "select" else "auto"
+        MPVLib.command("sub-add", subtitle.absolutePath, flag, subtitle.name)
+        Log.d(TAG, "Loaded JAV subtitle: ${subtitle.name} (flag=$flag)")
+      }
     }
   }
 

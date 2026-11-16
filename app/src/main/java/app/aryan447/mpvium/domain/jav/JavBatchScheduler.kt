@@ -18,6 +18,7 @@ enum class JavBatchFilter {
 object JavBatchScheduler {
   const val UNIQUE_SCRAPE = "jav-batch-scrape"
   const val UNIQUE_PREFETCH = "jav-batch-prefetch"
+  const val UNIQUE_SUBTITLES = "jav-batch-subtitles"
   const val KEY_MODE = "mode"
   const val KEY_FILTER = "filter"
   const val KEY_DONE = "done"
@@ -32,10 +33,13 @@ object JavBatchScheduler {
   const val KEY_LAST_ERROR = "last_error"
   const val MODE_SCRAPE = "scrape"
   const val MODE_PREFETCH = "prefetch"
+  const val MODE_SUBTITLES = "subtitles"
   const val REASON_NO_METADATA = "no_metadata"
   const val REASON_ALL_CACHED = "all_cached"
   const val REASON_NO_COVER_URL = "no_cover_url"
   const val REASON_NO_ITEMS = "no_items"
+  const val REASON_SUBTITLES_COMPLETE = "subtitles_complete"
+  const val KEY_ALREADY_PRESENT = "already_present"
 
   fun enqueueScrape(context: Context, filter: JavBatchFilter) {
     val request = OneTimeWorkRequestBuilder<JavBatchWorker>()
@@ -61,6 +65,18 @@ object JavBatchScheduler {
       .build()
     WorkManager.getInstance(context).enqueueUniqueWork(
       UNIQUE_PREFETCH,
+      ExistingWorkPolicy.REPLACE,
+      request,
+    )
+  }
+
+  fun enqueueSubtitles(context: Context) {
+    val request = OneTimeWorkRequestBuilder<JavBatchWorker>()
+      .setInputData(workDataOf(KEY_MODE to MODE_SUBTITLES))
+      .setConstraints(networkConstraints())
+      .build()
+    WorkManager.getInstance(context).enqueueUniqueWork(
+      UNIQUE_SUBTITLES,
       ExistingWorkPolicy.REPLACE,
       request,
     )

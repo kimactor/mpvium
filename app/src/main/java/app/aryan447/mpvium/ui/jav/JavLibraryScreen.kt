@@ -12,8 +12,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
@@ -36,6 +38,7 @@ import androidx.compose.runtime.collectAsState as collectState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -91,9 +94,12 @@ object JavLibraryScreen : Screen {
     val vm: JavLibraryViewModel = viewModel(factory = JavLibraryViewModel.factory(context.applicationContext as android.app.Application))
     val state by vm.uiState.collectState()
     var showAgeGate by remember { mutableStateOf(!preferences.ageConfirmed.get()) }
+    // Saved with the back stack entry so returning from a detail screen restores the exact row.
+    val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    val gridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
 
     LaunchedEffect(libraryEnabled) {
-      if (libraryEnabled) vm.refresh(forceScan = true)
+      if (libraryEnabled) vm.refresh(forceScan = state.items.isEmpty())
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -188,6 +194,7 @@ object JavLibraryScreen : Screen {
             .padding(padding),
         )
         layoutMode == MediaLayoutMode.LIST -> LazyColumn(
+          state = listState,
           modifier = Modifier
             .fillMaxSize()
             .padding(padding),
@@ -213,6 +220,7 @@ object JavLibraryScreen : Screen {
         }
         else -> LazyVerticalGrid(
           columns = GridCells.Fixed(gridColumns),
+          state = gridState,
           modifier = Modifier
             .fillMaxSize()
             .padding(padding),

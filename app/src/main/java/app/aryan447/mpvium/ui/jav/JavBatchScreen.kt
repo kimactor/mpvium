@@ -50,9 +50,12 @@ object JavBatchScreen : Screen {
       .collectAsState(initial = emptyList())
     val prefetchInfos by workManager.getWorkInfosForUniqueWorkFlow(JavBatchScheduler.UNIQUE_PREFETCH)
       .collectAsState(initial = emptyList())
-    val active = (scrapeInfos + prefetchInfos).firstOrNull { !it.state.isFinished }
+    val subtitleInfos by workManager.getWorkInfosForUniqueWorkFlow(JavBatchScheduler.UNIQUE_SUBTITLES)
+      .collectAsState(initial = emptyList())
+    val active = (scrapeInfos + prefetchInfos + subtitleInfos).firstOrNull { !it.state.isFinished }
     val lastScrape = scrapeInfos.lastOrNull()
     val lastPrefetch = prefetchInfos.lastOrNull()
+    val lastSubtitles = subtitleInfos.lastOrNull()
     var filterName by rememberSaveable { mutableStateOf(JavBatchFilter.MISSING.name) }
     val filter = runCatching { JavBatchFilter.valueOf(filterName) }.getOrDefault(JavBatchFilter.MISSING)
     val labels = mapOf(
@@ -110,11 +113,19 @@ object JavBatchScreen : Screen {
             ) {
               Text(stringResource(R.string.jav_batch_start_prefetch))
             }
+            FilledTonalButton(
+              onClick = { JavBatchScheduler.enqueueSubtitles(context) },
+              enabled = active == null,
+              modifier = Modifier.fillMaxWidth(),
+            ) {
+              Text(stringResource(R.string.jav_batch_start_subtitles))
+            }
             if (active != null) {
               OutlinedButton(
                 onClick = {
                   workManager.cancelUniqueWork(JavBatchScheduler.UNIQUE_SCRAPE)
                   workManager.cancelUniqueWork(JavBatchScheduler.UNIQUE_PREFETCH)
+                  workManager.cancelUniqueWork(JavBatchScheduler.UNIQUE_SUBTITLES)
                 },
                 modifier = Modifier.fillMaxWidth(),
               ) {
@@ -126,10 +137,13 @@ object JavBatchScreen : Screen {
 
         if (active == null) {
           lastScrape?.let { info ->
-            item { BatchResultCard(title = stringResource(R.string.jav_batch_start_scrape), info = info, scrape = true) }
+            item { BatchResultCard(title = stringResource(R.string.jav_batch_start_scrape), info = info, mode = JavBatchScheduler.MODE_SCRAPE) }
           }
           lastPrefetch?.let { info ->
-            item { BatchResultCard(title = stringResource(R.string.jav_batch_start_prefetch), info = info, scrape = false) }
+            item { BatchResultCard(title = stringResource(R.string.jav_batch_start_prefetch), info = info, mode = JavBatchScheduler.MODE_PREFETCH) }
+          }
+          lastSubtitles?.let { info ->
+            item { BatchResultCard(title = stringResource(R.string.jav_batch_start_subtitles), info = info, mode = JavBatchScheduler.MODE_SUBTITLES) }
           }
         }
 
@@ -170,7 +184,7 @@ object JavBatchScreen : Screen {
 private fun BatchResultCard(
   title: String,
   info: WorkInfo,
-  scrape: Boolean,
+  mode: String,
 ) {
   val state = info.state
   val failed = info.outputData.getInt(JavBatchScheduler.KEY_FAILED, 0)
@@ -179,30 +193,48 @@ private fun BatchResultCard(
 
   val message = when (state) {
     WorkInfo.State.SUCCEEDED -> {
-      if (scrape) {
-        stringResource(
-          R.string.jav_batch_scrape_result,
-          info.outputData.getInt(JavBatchScheduler.KEY_SUCCESS, 0),
-          failed,
-        )
-      } else {
-        val total = info.outputData.getInt(JavBatchScheduler.KEY_TOTAL, 0)
-        if (total == 0) {
-          when (info.outputData.getString(JavBatchScheduler.KEY_REASON)) {
-            JavBatchScheduler.REASON_ALL_CACHED -> stringResource(R.string.jav_batch_all_cached)
-            JavBatchScheduler.REASON_NO_METADATA -> stringResource(R.string.jav_batch_no_metadata)
-            JavBatchScheduler.REASON_NO_COVER_URL -> stringResource(R.string.jav_batch_no_cover_url)
-            JavBatchScheduler.REASON_NO_ITEMS -> stringResource(R.string.jav_batch_no_items)
-            else -> stringResource(R.string.jav_batch_no_cover_url)
-          }
-        } else {
+      when (mode) {
+        JavBatchScheduler.MODE_SCRAPE ->
           stringResource(
-            R.string.jav_batch_cover_result,
+            R.string.jav_batch_scrape_result,
             info.outputData.getInt(JavBatchScheduler.KEY_SUCCESS, 0),
             failed,
-            info.outputData.getInt(JavBatchScheduler.KEY_NO_COVER, 0),
-            info.outputData.getInt(JavBatchScheduler.KEY_ALREADY_CACHED, 0),
           )
+        JavBatchScheduler.MODE_PREFETCH -> {
+          val total = info.outputData.getInt(JavBatchScheduler.KEY_TOTAL, 0)
+          if (total == 0) {
+            when (info.outputData.getString(JavBatchScheduler.KEY_REASON)) {
+              JavBatchScheduler.REASON_ALL_CACHED -> stringResource(R.string.jav_batch_all_cached)
+              JavBatchScheduler.REASON_NO_METADATA -> stringResource(R.string.jav_batch_no_metadata)
+              JavBatchScheduler.REASON_NO_COVER_URL -> stringResource(R.string.jav_batch_no_cover_url)
+              JavBatchScheduler.REASON_NO_ITEMS -> stringResource(R.string.jav_batch_no_items)
+              else -> stringResource(R.string.jav_batch_no_cover_url)
+            }
+          } else {
+            stringResource(
+              R.string.jav_batch_cover_result,
+              info.outputData.getInt(JavBatchScheduler.KEY_SUCCESS, 0),
+              failed,
+              info.outputData.getInt(JavBatchScheduler.KEY_NO_COVER, 0),
+              info.outputData.getInt(JavBatchScheduler.KEY_ALREADY_CACHED, 0),
+            )
+          }
+        }
+        else -> {
+          val total = info.outputData.getInt(JavBatchScheduler.KEY_TOTAL, 0)
+          if (total == 0) {
+            when (info.outputData.getString(JavBatchScheduler.KEY_REASON)) {
+              JavBatchScheduler.REASON_NO_ITEMS -> stringResource(R.string.jav_batch_no_items)
+              else -> stringResource(R.string.jav_batch_subtitle_all)
+            }
+          } else {
+            stringResource(
+              R.string.jav_batch_subtitle_result,
+              info.outputData.getInt(JavBatchScheduler.KEY_SUCCESS, 0),
+              failed,
+              info.outputData.getInt(JavBatchScheduler.KEY_ALREADY_PRESENT, 0),
+            )
+          }
         }
       }
     }
@@ -214,12 +246,17 @@ private fun BatchResultCard(
     else -> null
   }
 
-  val kindsText = if (state == WorkInfo.State.SUCCEEDED && scrape && failed > 0 && failureKinds.isNotBlank()) {
+  val kindsText = if (state == WorkInfo.State.SUCCEEDED && mode == JavBatchScheduler.MODE_SCRAPE && failed > 0 && failureKinds.isNotBlank()) {
     stringResource(R.string.jav_batch_failure_kinds, failureKinds)
   } else {
     null
   }
-  val lastErrorText = if (state == WorkInfo.State.SUCCEEDED && scrape && failed > 0 && lastError.isNotBlank()) {
+  val lastErrorText = if (
+    state == WorkInfo.State.SUCCEEDED &&
+    mode != JavBatchScheduler.MODE_PREFETCH &&
+    failed > 0 &&
+    lastError.isNotBlank()
+  ) {
     stringResource(R.string.jav_batch_last_error, lastError.take(300))
   } else {
     null

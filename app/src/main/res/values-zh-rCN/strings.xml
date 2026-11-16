@@ -120,6 +120,25 @@
   <string name="jav_batch_notification_channel">JAV 批量任务</string>
   <string name="jav_batch_notification_title">JAV 批量任务运行中</string>
   <string name="jav_batch_notification_text">%1$d / %2$d</string>
+  <string name="jav_library_subtitles">字幕</string>
+  <string name="jav_library_subtitle_none">暂无字幕，可导入本地文件或在线搜索。</string>
+  <string name="jav_library_subtitle_import">导入</string>
+  <string name="jav_library_subtitle_search">在线搜索</string>
+  <string name="jav_library_subtitle_searching">搜索中…</string>
+  <string name="jav_library_subtitle_search_failed">字幕搜索失败，请检查网络或 JAV 代理。</string>
+  <string name="jav_library_subtitle_no_results">未找到该番号的中文字幕。</string>
+  <string name="jav_library_subtitle_chinese">中文</string>
+  <string name="jav_library_subtitle_chinese_simplified">简体</string>
+  <string name="jav_library_subtitle_chinese_traditional">繁体</string>
+  <string name="jav_library_subtitle_delete">删除字幕</string>
+  <string name="jav_library_subtitle_imported">已导入 %1$s</string>
+  <string name="jav_library_subtitle_import_failed">无法导入该文件，请使用 SRT、ASS、SSA、VTT 或 SUB 字幕。</string>
+  <string name="jav_library_subtitle_saved">已保存 %1$s</string>
+  <string name="jav_library_subtitle_download_failed">字幕下载失败，请检查网络或 JAV 代理，或手动导入。</string>
+  <string name="jav_library_subtitle_close">关闭</string>
+  <string name="jav_batch_start_subtitles">补全中文字幕</string>
+  <string name="jav_batch_subtitle_result">字幕：保存 %1$d，失败 %2$d，已存在 %3$d</string>
+  <string name="jav_batch_subtitle_all">所有 JAV 条目都已存在中文字幕</string>
 
   <string name="metadata_title">元数据与封面</string>
   <string name="metadata_subtitle">TMDb Key、合集与批量增强</string>

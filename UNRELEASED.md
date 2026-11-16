@@ -15,6 +15,8 @@
 - App language setting: follow system, English, or Simplified Chinese, with Chinese resources for the JAV, metadata, collections, and Library screens.
 - TMDb metadata and collections: optional API key, cast and studio enrichment, collection browsing with missing-part rows, and a background refresh job.
 - Cover prefetch retries missing metadata and cover URLs, verifies local files, and reports downloaded, failed, missing-URL, and cached counts.
+- JAV Chinese subtitles: sidecar files named by release code load automatically, local files can be imported from the detail screen, and missing ones can be searched and downloaded from SubtitleCat without an account or API key.
+- JAV batch job for subtitles that scans the whole library and fills in missing Chinese subtitles.
 
 ### Changed
 
@@ -27,3 +29,4 @@
 - Shader peek upscale chip no longer covers top-right player buttons when smart skip is absent.
 - JAV scraping works without a manual JavBus cookie or JavDB login; JavBus age-gate cookies are sent automatically and auth failures are reported once instead of retried for every item.
 - JAV covers no longer crop away the sides of landscape artwork in the library.
+- JAV library keeps its scroll position when you come back from a video instead of jumping to the top.

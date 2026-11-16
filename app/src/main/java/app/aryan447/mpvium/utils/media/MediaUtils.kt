@@ -51,6 +51,7 @@ object MediaUtils {
     source: Any,
     context: Context,
     launchSource: String? = null,
+    mediaCode: String? = null,
   ) {
     val uri =
       when (source) {
@@ -59,6 +60,7 @@ object MediaUtils {
           intent.setClass(context, PlayerActivity::class.java)
           intent.putExtra("internal_launch", true) // Enables subtitle autoload
           launchSource?.let { intent.putExtra("launch_source", it) }
+          mediaCode?.takeIf { it.isNotBlank() }?.let { intent.putExtra("media_code", it) }
 
           // For playlist items, pass the title so it shows correctly in the player
           if (launchSource != null && (launchSource.contains("playlist") || launchSource == "m3u_playlist")) {
@@ -99,6 +101,7 @@ object MediaUtils {
     intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     launchSource?.let { intent.putExtra("launch_source", it) }
+    mediaCode?.takeIf { it.isNotBlank() }?.let { intent.putExtra("media_code", it) }
     context.startActivity(intent)
   }
 

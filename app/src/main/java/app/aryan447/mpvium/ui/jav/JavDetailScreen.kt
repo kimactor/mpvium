@@ -2,6 +2,9 @@ package app.aryan447.mpvium.ui.jav
 
 import android.content.Intent
 import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,21 +15,27 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -49,6 +58,10 @@ import app.aryan447.mpvium.R
 import app.aryan447.mpvium.domain.jav.JavLibraryItem
 import app.aryan447.mpvium.domain.jav.JavLibraryRepository
 import app.aryan447.mpvium.domain.jav.JavMetadataRepository
+import app.aryan447.mpvium.domain.jav.JavSubtitleFile
+import app.aryan447.mpvium.domain.jav.JavSubtitleRepository
+import app.aryan447.mpvium.domain.jav.SubtitleCatCandidate
+import app.aryan447.mpvium.domain.jav.SubtitleCatSource
 import app.aryan447.mpvium.presentation.Screen
 import app.aryan447.mpvium.ui.browser.states.EmptyState
 import app.aryan447.mpvium.ui.browser.states.LoadingState
@@ -70,11 +83,19 @@ data class JavDetailScreen(
     val context = LocalContext.current
     val repository = koinInject<JavLibraryRepository>()
     val metadataRepository = koinInject<JavMetadataRepository>()
+    val subtitleRepository = koinInject<JavSubtitleRepository>()
+    val subtitleCatSource = koinInject<SubtitleCatSource>()
     val scope = rememberCoroutineScope()
     var item by remember(code) { mutableStateOf<JavLibraryItem?>(null) }
     var isLoading by remember(code) { mutableStateOf(true) }
     var isScraping by remember(code) { mutableStateOf(false) }
     var error by remember(code) { mutableStateOf<String?>(null) }
+    var subtitles by remember(code) { mutableStateOf<List<JavSubtitleFile>>(emptyList()) }
+    var subtitleMessage by remember(code) { mutableStateOf<String?>(null) }
+    var isWorkingSubtitles by remember(code) { mutableStateOf(false) }
+    var searchingSubtitles by remember(code) { mutableStateOf(false) }
+    var showSubtitleSearch by remember(code) { mutableStateOf(false) }
+    var candidates by remember(code) { mutableStateOf<List<SubtitleCatCandidate>>(emptyList()) }
 
     suspend fun loadItem() {
       item = withContext(Dispatchers.IO) {
@@ -83,8 +104,77 @@ data class JavDetailScreen(
       isLoading = false
     }
 
+    suspend fun loadSubtitles() {
+      subtitles = withContext(Dispatchers.IO) {
+        runCatching { subtitleRepository.listForVideo(code, item?.video?.path) }.getOrDefault(emptyList())
+      }
+    }
+
     LaunchedEffect(code) {
       loadItem()
+      loadSubtitles()
+    }
+
+    fun pickedFileName(uri: Uri): String =
+      runCatching {
+        context.contentResolver
+          .query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+          ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+      }.getOrNull() ?: uri.lastPathSegment ?: "subtitle.srt"
+
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+      if (uri == null) return@rememberLauncherForActivityResult
+      scope.launch {
+        isWorkingSubtitles = true
+        subtitleMessage = null
+        val result = withContext(Dispatchers.IO) {
+          runCatching {
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+              ?: error("Could not read the file")
+            subtitleRepository.importFile(code, pickedFileName(uri), bytes).getOrThrow()
+          }
+        }
+        isWorkingSubtitles = false
+        subtitleMessage = result.fold(
+          onSuccess = { context.getString(R.string.jav_library_subtitle_imported, it.name) },
+          onFailure = { context.getString(R.string.jav_library_subtitle_import_failed) },
+        )
+        loadSubtitles()
+      }
+    }
+
+    fun searchSubtitles() {
+      if (searchingSubtitles) return
+      scope.launch {
+        searchingSubtitles = true
+        subtitleMessage = null
+        val result = subtitleCatSource.searchChinese(code)
+        searchingSubtitles = false
+        candidates = result.getOrDefault(emptyList())
+        showSubtitleSearch = true
+        if (result.isFailure) {
+          subtitleMessage = context.getString(R.string.jav_library_subtitle_search_failed)
+        }
+      }
+    }
+
+    fun downloadSubtitle(candidate: SubtitleCatCandidate, traditional: Boolean) {
+      scope.launch {
+        isWorkingSubtitles = true
+        subtitleMessage = null
+        val result = subtitleCatSource.download(candidate, traditional).mapCatching { bytes ->
+          subtitleRepository
+            .saveDownload(code, if (traditional) "zh-TW" else "zh-CN", bytes)
+            .getOrThrow()
+        }
+        isWorkingSubtitles = false
+        subtitleMessage = result.fold(
+          onSuccess = { context.getString(R.string.jav_library_subtitle_saved, it.name) },
+          onFailure = { context.getString(R.string.jav_library_subtitle_download_failed) },
+        )
+        if (result.isSuccess) showSubtitleSearch = false
+        loadSubtitles()
+      }
     }
 
     fun scrape() {
@@ -188,7 +278,7 @@ data class JavDetailScreen(
                   verticalAlignment = Alignment.CenterVertically,
                 ) {
                   Button(
-                    onClick = { MediaUtils.playFile(current.video, context, "jav_library") },
+                    onClick = { MediaUtils.playFile(current.video, context, "jav_library", mediaCode = current.code) },
                   ) {
                     Icon(Icons.Filled.PlayArrow, contentDescription = null)
                     Spacer(modifier = Modifier.width(6.dp))
@@ -234,6 +324,100 @@ data class JavDetailScreen(
 
             item {
               PreferenceCard {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                  Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                      text = stringResource(R.string.jav_library_subtitles),
+                      style = MaterialTheme.typography.titleSmall,
+                      modifier = Modifier.weight(1f),
+                    )
+                    if (isWorkingSubtitles) {
+                      CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    }
+                  }
+                  if (subtitles.isEmpty()) {
+                    Text(
+                      text = stringResource(R.string.jav_library_subtitle_none),
+                      style = MaterialTheme.typography.bodySmall,
+                      color = MaterialTheme.colorScheme.onSurfaceVariant,
+                      modifier = Modifier.padding(top = 4.dp),
+                    )
+                  } else {
+                    subtitles.forEach { subtitle ->
+                      Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                          text = subtitle.file.name,
+                          style = MaterialTheme.typography.bodyMedium,
+                          modifier = Modifier.weight(1f),
+                        )
+                        if (subtitle.chinese) {
+                          Text(
+                            text = stringResource(R.string.jav_library_subtitle_chinese),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(end = 4.dp),
+                          )
+                        }
+                        if (subtitle.managed) {
+                          IconButton(onClick = {
+                            scope.launch {
+                              subtitleRepository.delete(subtitle.file)
+                              loadSubtitles()
+                            }
+                          }) {
+                            Icon(
+                              Icons.Filled.Delete,
+                              contentDescription = stringResource(R.string.jav_library_subtitle_delete),
+                            )
+                          }
+                        }
+                      }
+                    }
+                  }
+                  Row(
+                    modifier = Modifier.padding(top = 8.dp, bottom = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                  ) {
+                    FilledTonalButton(
+                      onClick = { importLauncher.launch(arrayOf("*/*")) },
+                      modifier = Modifier.weight(1f),
+                    ) {
+                      Icon(Icons.Filled.Download, contentDescription = null)
+                      Spacer(modifier = Modifier.width(6.dp))
+                      Text(stringResource(R.string.jav_library_subtitle_import))
+                    }
+                    OutlinedButton(
+                      onClick = { searchSubtitles() },
+                      enabled = !searchingSubtitles,
+                      modifier = Modifier.weight(1f),
+                    ) {
+                      Icon(Icons.Filled.Search, contentDescription = null)
+                      Spacer(modifier = Modifier.width(6.dp))
+                      Text(
+                        stringResource(
+                          if (searchingSubtitles) {
+                            R.string.jav_library_subtitle_searching
+                          } else {
+                            R.string.jav_library_subtitle_search
+                          },
+                        ),
+                      )
+                    }
+                  }
+                  subtitleMessage?.let { message ->
+                    Text(
+                      text = message,
+                      style = MaterialTheme.typography.bodySmall,
+                      color = MaterialTheme.colorScheme.onSurfaceVariant,
+                      modifier = Modifier.padding(bottom = 6.dp),
+                    )
+                  }
+                }
+              }
+            }
+
+            item {
+              PreferenceCard {
                 val metadata = current.metadata
                 JavInfoRow(stringResource(R.string.jav_library_status), metadata?.status)
                 JavInfoRow(stringResource(R.string.jav_library_source), metadata?.source)
@@ -262,6 +446,49 @@ data class JavDetailScreen(
           }
         }
       }
+    }
+
+    if (showSubtitleSearch) {
+      AlertDialog(
+        onDismissRequest = { showSubtitleSearch = false },
+        title = { Text(stringResource(R.string.jav_library_subtitle_search)) },
+        text = {
+          if (candidates.isEmpty()) {
+            Text(stringResource(R.string.jav_library_subtitle_no_results))
+          } else {
+            LazyColumn(
+              modifier = Modifier.heightIn(max = 320.dp),
+              verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+              items(candidates, key = { it.detailUrl }) { candidate ->
+                Column(modifier = Modifier.fillMaxWidth()) {
+                  Text(
+                    text = candidate.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                  )
+                  Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    candidate.simplifiedUrl?.let {
+                      TextButton(onClick = { downloadSubtitle(candidate, traditional = false) }) {
+                        Text(stringResource(R.string.jav_library_subtitle_chinese_simplified))
+                      }
+                    }
+                    candidate.traditionalUrl?.let {
+                      TextButton(onClick = { downloadSubtitle(candidate, traditional = true) }) {
+                        Text(stringResource(R.string.jav_library_subtitle_chinese_traditional))
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        confirmButton = {
+          TextButton(onClick = { showSubtitleSearch = false }) {
+            Text(stringResource(R.string.jav_library_subtitle_close))
+          }
+        },
+      )
     }
   }
 }
