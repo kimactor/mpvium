@@ -134,7 +134,7 @@ object JavLibraryScreen : Screen {
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var isSearching by rememberSaveable { mutableStateOf(false) }
     var watchFilterOrdinal by rememberSaveable { mutableIntStateOf(0) }
-    var sortOrdinal by rememberSaveable { mutableIntStateOf(JavLibrarySort.RECENTLY_ADDED.ordinal) }
+    var sortOrdinal by rememberSaveable { mutableIntStateOf(JavLibrarySort.NAME.ordinal) }
     var selectedCodes by rememberSaveable { mutableStateOf(emptySet<String>()) }
     var showMarkAsDialog by remember { mutableStateOf(false) }
 
