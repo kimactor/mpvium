@@ -2,8 +2,10 @@ package app.aryan447.mpvium.domain.jav
 
 import app.aryan447.mpvium.database.dao.JavDao
 import app.aryan447.mpvium.database.dao.LibraryIndexDao
+import app.aryan447.mpvium.database.dao.PlaybackStateDao
 import app.aryan447.mpvium.database.entities.JavFileEntity
 import app.aryan447.mpvium.database.entities.JavItemEntity
+import app.aryan447.mpvium.database.entities.PlaybackStateEntity
 import app.aryan447.mpvium.domain.media.model.Video
 import app.aryan447.mpvium.domain.streaming.toVideo
 import kotlinx.coroutines.Dispatchers
@@ -14,15 +16,24 @@ import kotlinx.serialization.json.Json
 class JavLibraryRepository(
   private val javDao: JavDao,
   private val libraryIndexDao: LibraryIndexDao,
+  private val playbackStateDao: PlaybackStateDao,
+  private val subtitleRepository: JavSubtitleRepository,
   private val json: Json,
 ) {
   suspend fun loadItems(): List<JavLibraryItem> = withContext(Dispatchers.IO) {
     val metadata = javDao.getAllItems().associateBy { it.code }
     val index = libraryIndexDao.getAll().associateBy { it.path }
-    javDao.getAllFiles()
+    val playback = playbackStateDao.getAllPlaybackStates().associateBy { it.mediaTitle }
+    val items = javDao.getAllFiles()
       .mapNotNull { file ->
         val entity = index[file.path] ?: return@mapNotNull null
-        file.toItem(entity.toVideo(), metadata[file.code])
+        val video = entity.toVideo()
+        file.toItem(video, metadata[file.code], playback[video.displayName] ?: playback[video.title])
+      }
+    val subtitleCodes = subtitleRepository.codesWithChineseSubtitles(items.map { it.code to it.video.path })
+    items
+      .map { item ->
+        if (subtitleCodes.contains(item.code)) item.copy(hasChineseSubtitle = true) else item
       }
       .sortedWith(compareBy({ it.title.lowercase() }, { it.code }))
   }
@@ -31,18 +42,24 @@ class JavLibraryRepository(
     val metadata = javDao.getItem(code)
     val file = javDao.getFilesForCode(code).firstOrNull() ?: return@withContext null
     val entity = libraryIndexDao.getByPath(file.path) ?: return@withContext null
-    file.toItem(entity.toVideo(), metadata)
+    val video = entity.toVideo()
+    val playback = playbackStateDao.getVideoDataByTitle(video.displayName)
+      ?: playbackStateDao.getVideoDataByTitle(video.title)
+    file.toItem(video, metadata, playback)
+      .copy(hasChineseSubtitle = subtitleRepository.hasChinese(code, video.path))
   }
 
   private fun JavFileEntity.toItem(
     video: Video,
     metadata: JavItemEntity?,
+    playbackState: PlaybackStateEntity?,
   ): JavLibraryItem = JavLibraryItem(
     file = this,
     metadata = metadata,
     video = video,
     actresses = metadata?.let { it.decodeList(it.actressesJson) }.orEmpty(),
     genres = metadata?.let { it.decodeList(it.genresJson) }.orEmpty(),
+    playbackState = playbackState,
   )
 
   private fun JavItemEntity.decodeList(value: String?): List<String> {

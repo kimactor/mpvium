@@ -334,14 +334,15 @@ fun LibraryResultCount(
   total: Int,
   filterType: TitlesTypeFilter = TitlesTypeFilter.ALL,
   modifier: Modifier = Modifier,
+  noun: String? = null,
 ) {
-  val noun = when (filterType) {
+  val resolvedNoun = noun ?: when (filterType) {
     TitlesTypeFilter.ALL -> if (total == 1) "title" else "titles"
     TitlesTypeFilter.SHOWS -> if (total == 1) "TV show" else "TV shows"
     TitlesTypeFilter.MOVIES -> if (total == 1) "movie" else "movies"
   }
   Text(
-    text = if (shown == total) "$total $noun" else "$shown of $total $noun",
+    text = if (shown == total) "$total $resolvedNoun" else "$shown of $total $resolvedNoun",
     style = MaterialTheme.typography.labelMedium,
     color = MaterialTheme.colorScheme.onSurfaceVariant,
     modifier = modifier.padding(horizontal = 4.dp),

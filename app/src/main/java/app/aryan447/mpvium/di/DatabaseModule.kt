@@ -634,6 +634,8 @@ val DatabaseModule =
 
     single { get<MpviumDatabase>().javDao() }
 
+    single { get<MpviumDatabase>().videoDataDao() }
+
     singleOf(::PlaybackStateRepositoryImpl).bind(PlaybackStateRepository::class)
 
     single<RecentlyPlayedRepository> {

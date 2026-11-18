@@ -47,7 +47,7 @@ val domainModule = module {
     single { JavDbPublicSource(get(), get(), get()) }
     single { DmmSource(get(), get(), get()) }
     single { JavMetadataRepository(get(), get(), get(), get(), get(), get(), get(), get()) }
-    single { JavLibraryRepository(get(), get(), get()) }
+    single { JavLibraryRepository(get(), get(), get(), get(), get()) }
     single { JavSubtitleRepository(androidContext()) }
     single { SubtitleCatSource(get()) }
     single { StreamingArtworkStore(androidContext(), get()) }

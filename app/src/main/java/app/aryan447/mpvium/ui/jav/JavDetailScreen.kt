@@ -3,12 +3,15 @@ package app.aryan447.mpvium.ui.jav
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -37,6 +40,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -55,6 +59,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.aryan447.mpvium.R
+import app.aryan447.mpvium.database.entities.JavItemEntity
 import app.aryan447.mpvium.domain.jav.JavLibraryItem
 import app.aryan447.mpvium.domain.jav.JavLibraryRepository
 import app.aryan447.mpvium.domain.jav.JavMetadataRepository
@@ -73,6 +78,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
+import kotlin.math.roundToInt
 
 @Serializable
 data class JavDetailScreen(
@@ -222,6 +228,14 @@ data class JavDetailScreen(
         )
         else -> {
           val current = item!!
+          val hasTags = current.actresses.isNotEmpty() ||
+            current.genres.isNotEmpty() ||
+            listOfNotNull(
+              current.metadata?.studio,
+              current.metadata?.label,
+              current.metadata?.series,
+              current.metadata?.director,
+            ).any { it.isNotBlank() }
           LazyColumn(
             modifier = Modifier
               .fillMaxSize()
@@ -322,6 +336,35 @@ data class JavDetailScreen(
               }
             }
 
+            current.metadata?.overview?.takeIf { it.isNotBlank() }?.let { overview ->
+              item {
+                PreferenceCard {
+                  Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    Text(
+                      text = stringResource(R.string.jav_library_overview),
+                      style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                      text = overview,
+                      style = MaterialTheme.typography.bodyMedium,
+                      color = MaterialTheme.colorScheme.onSurfaceVariant,
+                      modifier = Modifier.padding(top = 6.dp),
+                    )
+                  }
+                }
+              }
+            }
+
+            if (hasTags) {
+              item {
+                JavTagsCard(item = current)
+              }
+            }
+
+            item {
+              JavFileInfoCard(item = current)
+            }
+
             item {
               PreferenceCard {
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
@@ -419,25 +462,13 @@ data class JavDetailScreen(
             item {
               PreferenceCard {
                 val metadata = current.metadata
-                JavInfoRow(stringResource(R.string.jav_library_status), metadata?.status)
+                JavInfoRow(stringResource(R.string.jav_library_status), javMetadataStatusLabel(metadata?.status))
                 JavInfoRow(stringResource(R.string.jav_library_source), metadata?.source)
                 JavInfoRow(stringResource(R.string.jav_library_last_error), metadata?.lastError)
                 JavInfoRow(stringResource(R.string.jav_library_release_date), metadata?.releaseDate)
                 JavInfoRow(
                   stringResource(R.string.jav_library_runtime),
                   metadata?.runtimeMinutes?.let { stringResource(R.string.jav_library_runtime_minutes, it) },
-                )
-                JavInfoRow(stringResource(R.string.jav_library_studio), metadata?.studio)
-                JavInfoRow(stringResource(R.string.jav_library_label), metadata?.label)
-                JavInfoRow(stringResource(R.string.jav_library_series), metadata?.series)
-                JavInfoRow(stringResource(R.string.jav_library_director), metadata?.director)
-                JavInfoRow(
-                  stringResource(R.string.jav_library_actresses),
-                  current.actresses.joinToString(", ").takeIf { it.isNotBlank() },
-                )
-                JavInfoRow(
-                  stringResource(R.string.jav_library_genres),
-                  current.genres.joinToString(", ").takeIf { it.isNotBlank() },
                 )
               }
             }
@@ -491,6 +522,125 @@ data class JavDetailScreen(
       )
     }
   }
+}
+
+@Composable
+private fun JavFileInfoCard(item: JavLibraryItem) {
+  val resume = if (!item.isWatched && item.resumePositionMs >= 10_000L) {
+    stringResource(
+      R.string.jav_library_resume_at,
+      DateUtils.formatElapsedTime(item.resumePositionMs / 1000),
+    )
+  } else {
+    null
+  }
+  val watchStatus = when {
+    item.isWatched -> stringResource(R.string.jav_library_watched)
+    item.progressPercentage > 0f -> stringResource(
+      R.string.jav_library_progress,
+      (item.progressPercentage * 100).roundToInt(),
+    )
+    else -> stringResource(R.string.jav_library_filter_unwatched)
+  }.let { status -> listOfNotNull(status, resume).joinToString(" · ") }
+
+  PreferenceCard {
+    JavInfoRow(stringResource(R.string.jav_library_watch_status), watchStatus)
+    JavInfoRow(stringResource(R.string.jav_library_file_name), item.video.displayName)
+    JavInfoRow(
+      stringResource(R.string.jav_library_file_size),
+      item.video.sizeFormatted.takeIf { item.video.size > 0 },
+    )
+    JavInfoRow(
+      stringResource(R.string.jav_library_resolution),
+      item.video.resolution.takeIf { it.isNotBlank() },
+    )
+    JavInfoRow(
+      stringResource(R.string.jav_library_duration),
+      item.video.durationFormatted.takeIf { it.isNotBlank() && it != "0s" }
+        ?: item.metadata?.runtimeMinutes?.let { stringResource(R.string.jav_library_runtime_minutes, it) },
+    )
+    JavInfoRow(
+      stringResource(R.string.jav_library_file_path),
+      item.video.path.takeIf { it.isNotBlank() },
+    )
+  }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun JavTagsCard(item: JavLibraryItem) {
+  val groups = mutableListOf<Pair<String, List<String>>>()
+  if (item.actresses.isNotEmpty()) {
+    groups += stringResource(R.string.jav_library_actresses) to item.actresses
+  }
+  item.metadata?.studio?.takeIf { it.isNotBlank() }?.let {
+    groups += stringResource(R.string.jav_library_studio) to listOf(it)
+  }
+  item.metadata?.label?.takeIf { it.isNotBlank() }?.let {
+    groups += stringResource(R.string.jav_library_label) to listOf(it)
+  }
+  item.metadata?.series?.takeIf { it.isNotBlank() }?.let {
+    groups += stringResource(R.string.jav_library_series) to listOf(it)
+  }
+  item.metadata?.director?.takeIf { it.isNotBlank() }?.let {
+    groups += stringResource(R.string.jav_library_director) to listOf(it)
+  }
+  if (item.genres.isNotEmpty()) {
+    groups += stringResource(R.string.jav_library_genres) to item.genres
+  }
+
+  PreferenceCard {
+    Column(
+      modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+      verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+      Text(
+        text = stringResource(R.string.jav_library_tags),
+        style = MaterialTheme.typography.titleSmall,
+      )
+      groups.forEach { (label, values) ->
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+          Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+          FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            values.forEach { value -> JavTagChip(value) }
+          }
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun JavTagChip(text: String) {
+  Surface(
+    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    shape = RoundedCornerShape(8.dp),
+  ) {
+    Text(
+      text = text,
+      style = MaterialTheme.typography.labelMedium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+    )
+  }
+}
+
+@Composable
+private fun javMetadataStatusLabel(status: String?): String? = when (status) {
+  null, "" -> null
+  JavItemEntity.STATUS_PENDING -> stringResource(R.string.jav_library_metadata_pending)
+  JavItemEntity.STATUS_OK -> stringResource(R.string.jav_library_metadata_ok)
+  JavItemEntity.STATUS_PARTIAL -> stringResource(R.string.jav_library_metadata_partial)
+  JavItemEntity.STATUS_FAILED -> stringResource(R.string.jav_library_metadata_failed)
+  JavItemEntity.STATUS_NOT_FOUND -> stringResource(R.string.jav_library_metadata_not_found)
+  else -> status
 }
 
 @Composable

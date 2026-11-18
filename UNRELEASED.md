@@ -17,9 +17,14 @@
 - Cover prefetch retries missing metadata and cover URLs, verifies local files, and reports downloaded, failed, missing-URL, and cached counts.
 - JAV Chinese subtitles: sidecar files named by release code load automatically, local files can be imported from the detail screen, and missing ones can be searched and downloaded from SubtitleCat without an account or API key.
 - JAV batch job for subtitles that scans the whole library and fills in missing Chinese subtitles.
+- JAV library search, watch-state filters, sort options, and a result count.
+- JAV cards show resume progress, watched, resolution, size, duration, and Chinese-subtitle badges.
+- Long-press JAV cards to select several videos and mark them watched, in progress, or unwatched.
+- JAV detail screens show the scraped overview, file facts, and actress, studio, series, and genre chips.
 
 ### Changed
 
+- JAV metadata status now reads as plain language instead of raw scrape states.
 - Modern is the default player layout; Classic is one tap away in Settings → Appearance → Player Layout.
 - Player button backgrounds are now opt-in by default, giving controls clean floating icons that can be re-enabled in Settings → Player controls.
 
