@@ -30,6 +30,19 @@ android {
     buildConfigField("int", "GIT_COUNT", getCommitCount())
   }
 
+  signingConfigs {
+    // Shared side-load key for CI and local builds. It is intentionally public:
+    // it only lets a new APK install over the previous build, and is never used
+    // for a store or GitHub release. Production signing still comes from the
+    // SIGNING_KEYSTORE secret in release.yml.
+    create("sideload") {
+      storeFile = rootProject.file("keystore/sideload.p12")
+      storePassword = "mpvium"
+      keyAlias = "mpvium"
+      keyPassword = "mpvium"
+    }
+  }
+
   flavorDimensions += "distribution"
 
   productFlavors {
@@ -73,9 +86,12 @@ android {
 
   buildTypes {
     named("release") {
-      // Only CI may opt into the debug key; production releases use the
-      // secret-based signing step in the release workflow.
-      if (providers.gradleProperty("ciDebugSigning").isPresent) {
+      // CI and local side-load builds share one key so an update installs over
+      // the previous APK without uninstalling. Production releases stay
+      // unsigned here and are signed by release.yml with the repository secret.
+      if (providers.gradleProperty("sideloadSigning").isPresent) {
+        signingConfig = signingConfigs.getByName("sideload")
+      } else if (providers.gradleProperty("ciDebugSigning").isPresent) {
         signingConfig = signingConfigs.getByName("debug")
       }
       // -PciFastBuild (CI only) skips R8 minify + resource shrinking:
