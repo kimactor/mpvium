@@ -52,6 +52,46 @@ class JavSubtitleRepository(
   suspend fun hasChinese(code: String, videoFilePath: String?): Boolean =
     listForVideo(code, videoFilePath).any { it.chinese }
 
+  /**
+   * Batch variant of [hasChinese] for the library grid. Lists each app subtitle
+   * directory and each video folder once instead of scanning per item.
+   */
+  suspend fun codesWithChineseSubtitles(
+    videos: List<Pair<String, String?>>,
+  ): Set<String> =
+    withContext(Dispatchers.IO) {
+      if (videos.isEmpty()) return@withContext emptySet()
+      val result = mutableSetOf<String>()
+
+      videos.forEach { (code, _) ->
+        val hasManaged = appSubtitleDir(code).listFiles()
+          .orEmpty()
+          .any { it.isFile && JavSubtitleMatcher.isChineseName(it.name) }
+        if (hasManaged) result += code
+      }
+
+      videos
+        .mapNotNull { (code, path) ->
+          val dir = path
+            ?.takeIf { it.startsWith("/") }
+            ?.let { File(it).parentFile }
+            ?: return@mapNotNull null
+          dir to code
+        }
+        .groupBy { it.first }
+        .forEach { (dir, entries) ->
+          val siblings = dir.listFiles().orEmpty().filter { it.isFile }.map { it.name }
+          entries.forEach { (_, code) ->
+            val hasSibling = siblings.any {
+              JavSubtitleMatcher.matchesCode(it, code) && JavSubtitleMatcher.isChineseName(it)
+            }
+            if (hasSibling) result += code
+          }
+        }
+
+      result
+    }
+
   suspend fun importFile(
     code: String,
     displayName: String,

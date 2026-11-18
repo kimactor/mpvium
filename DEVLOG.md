@@ -20,6 +20,15 @@
 >
 > Older entries: see DEVLOG-archive/ (once archiving starts).
 
+## [2026-11-18 21:10] Change #11: Surface watch state, search, filters, and multi-select in the JAV library
+- **Purpose**: The JAV library only listed title, code, and actresses. It had no search, filter, or sort, no resume/watched indicators, no long-press actions, and the detail screen hid the scraped overview and file facts behind a flat metadata list.
+- **Approach**: Reuse the existing library interaction language instead of inventing a JAV-only one: `LibraryFilterBar` chips plus sort menu, `TitleWatchFilter`-style watch states, `LibraryResultCount`, `MarkAsDialog`, and `VideoWatchStatusOps`. Read watch state with one `PlaybackStateDao.getAllPlaybackStates()` query per load and subtitle presence with a batched file scan, so cards stay cheap. Keep the Room schema untouched; sorting/filtering is client-side over the loaded list.
+- **Proposal**: Add JAV-specific watch filter and sort enums, expose `playbackState`/`hasChineseSubtitle` on `JavLibraryItem`, show progress and badges on cards, switch the top bar into a selection bar on long-press, and rebuild the detail metadata area as overview + file facts + chips.
+- **Decision**: Pending implementation.
+- **Files**: Pending.
+- **Risks**: Pending.
+- **Verification**: Pending.
+
 ## [2026-11-18 20:05] Change #10: Pin CI and local side-load signing so APKs upgrade in place
 - **Purpose**: Every CI build signed the release APK with a freshly generated debug keystore, so installing a newer artifact over an existing one failed with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. The only workaround was to uninstall, which deleted the Room database, downloaded JAV covers, and Chinese subtitles from app-private storage.
 - **Approach**: Android requires the same signing certificate for an in-place update; no adb or installer flag bypasses that check. Options considered: (a) reuse the repository `SIGNING_KEYSTORE` secret - unavailable for this fork; (b) cache `~/.android/debug.keystore` in GitHub Actions - evicted and not shared with local builds; (c) commit a dedicated public side-load keystore used only by `build.yml` and local release builds, while `release.yml`/`preview.yml` keep secret-based signing for published artifacts. Chose (c) because the fork has no release secrets and the key only protects direct APK upgrades, not store distribution.
