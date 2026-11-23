@@ -48,6 +48,16 @@ class JavDbPageSource(
   @Volatile private var cooldownKind = JavSourceFailureKind.NETWORK
   @Volatile private var cooldownMessage = "JavDB web pages are temporarily unavailable"
 
+  init {
+    val savedUntil = preferences.javDbPageCooldownUntil.get()
+    if (savedUntil > System.currentTimeMillis()) {
+      cooldownUntil = savedUntil
+      cooldownKind = savedJavCooldownKind(preferences.javDbPageCooldownKind.get())
+      cooldownMessage = preferences.javDbPageCooldownMessage.get()
+        .ifBlank { "JavDB web pages are temporarily unavailable" }
+    }
+  }
+
   suspend fun fetch(code: String): JavMetadata = withContext(Dispatchers.IO) {
     if (System.currentTimeMillis() < cooldownUntil) {
       throw JavSourceException(cooldownKind, cooldownMessage)
@@ -171,6 +181,9 @@ class JavDbPageSource(
     cooldownUntil = System.currentTimeMillis() + waitMs
     cooldownKind = error.kind
     cooldownMessage = error.message ?: "JavDB web pages are temporarily unavailable"
+    preferences.javDbPageCooldownUntil.set(cooldownUntil)
+    preferences.javDbPageCooldownKind.set(cooldownKind.name)
+    preferences.javDbPageCooldownMessage.set(cooldownMessage)
   }
 
   private fun loginRequired() = JavSourceException(

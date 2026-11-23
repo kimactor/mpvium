@@ -145,6 +145,8 @@
   <string name="jav_batch_scrape_result">刮削：成功 %1$d，失败 %2$d</string>
   <string name="jav_batch_cover_result">封面：下载 %1$d，失败 %2$d，无 URL %3$d，已缓存 %4$d</string>
   <string name="jav_batch_all_cached">所有封面都已缓存</string>
+  <string name="jav_batch_cover_retry_waiting">暂无到期的封面。%1$d 个正在等待重试时间。</string>
+  <string name="jav_batch_cover_skipped">%1$d 个封面等待重试</string>
   <string name="jav_batch_no_metadata">尚无已刮削元数据，请先执行“开始刮削”。</string>
   <string name="jav_batch_no_cover_url">元数据中没有封面 URL。请检查 JavBus Cookie 与 JavDB 来源，然后重新开始刮削。</string>
   <string name="jav_batch_no_items">未找到 JAV 条目。</string>

@@ -188,6 +188,8 @@ private fun BatchResultCard(
 ) {
   val state = info.state
   val failed = info.outputData.getInt(JavBatchScheduler.KEY_FAILED, 0)
+  val total = info.outputData.getInt(JavBatchScheduler.KEY_TOTAL, 0)
+  val skipped = info.outputData.getInt(JavBatchScheduler.KEY_SKIPPED, 0)
   val failureKinds = info.outputData.getString(JavBatchScheduler.KEY_FAILURE_KINDS).orEmpty()
   val lastError = info.outputData.getString(JavBatchScheduler.KEY_LAST_ERROR).orEmpty()
 
@@ -201,13 +203,14 @@ private fun BatchResultCard(
             failed,
           )
         JavBatchScheduler.MODE_PREFETCH -> {
-          val total = info.outputData.getInt(JavBatchScheduler.KEY_TOTAL, 0)
           if (total == 0) {
             when (info.outputData.getString(JavBatchScheduler.KEY_REASON)) {
               JavBatchScheduler.REASON_ALL_CACHED -> stringResource(R.string.jav_batch_all_cached)
               JavBatchScheduler.REASON_NO_METADATA -> stringResource(R.string.jav_batch_no_metadata)
               JavBatchScheduler.REASON_NO_COVER_URL -> stringResource(R.string.jav_batch_no_cover_url)
               JavBatchScheduler.REASON_NO_ITEMS -> stringResource(R.string.jav_batch_no_items)
+              JavBatchScheduler.REASON_RETRY_WAITING ->
+                stringResource(R.string.jav_batch_cover_retry_waiting, skipped)
               else -> stringResource(R.string.jav_batch_no_cover_url)
             }
           } else {
@@ -221,7 +224,6 @@ private fun BatchResultCard(
           }
         }
         else -> {
-          val total = info.outputData.getInt(JavBatchScheduler.KEY_TOTAL, 0)
           if (total == 0) {
             when (info.outputData.getString(JavBatchScheduler.KEY_REASON)) {
               JavBatchScheduler.REASON_NO_ITEMS -> stringResource(R.string.jav_batch_no_items)
@@ -261,7 +263,17 @@ private fun BatchResultCard(
   } else {
     null
   }
-  val details = listOfNotNull(kindsText, lastErrorText).joinToString("\n")
+  val skippedText = if (
+    state == WorkInfo.State.SUCCEEDED &&
+    mode == JavBatchScheduler.MODE_PREFETCH &&
+    total > 0 &&
+    skipped > 0
+  ) {
+    stringResource(R.string.jav_batch_cover_skipped, skipped)
+  } else {
+    null
+  }
+  val details = listOfNotNull(kindsText, lastErrorText, skippedText).joinToString("\n")
 
   if (message != null) {
     PreferenceCard {

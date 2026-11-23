@@ -951,6 +951,8 @@
   <string name="jav_batch_scrape_result">Scraped: %1$d succeeded, %2$d failed</string>
   <string name="jav_batch_cover_result">Covers: %1$d downloaded, %2$d failed, %3$d without URL, %4$d already cached</string>
   <string name="jav_batch_all_cached">All covers are already cached</string>
+  <string name="jav_batch_cover_retry_waiting">No covers are due yet. %1$d are waiting for their retry time.</string>
+  <string name="jav_batch_cover_skipped">%1$d covers waiting for retry</string>
   <string name="jav_batch_no_metadata">No scraped metadata yet. Run Start scraping first.</string>
   <string name="jav_batch_no_cover_url">Metadata has no cover URL. Check the JavBus cookie and JavDB source, then run Start scraping.</string>
   <string name="jav_batch_no_items">No JAV items found.</string>

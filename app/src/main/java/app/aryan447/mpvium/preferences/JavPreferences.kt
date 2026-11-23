@@ -24,4 +24,15 @@ class JavPreferences(
   val proxyUsername = preferenceStore.getString("jav_proxy_username", "")
   val proxyPassword = preferenceStore.getString("jav_proxy_password", "")
   val customUserAgent = preferenceStore.getString("jav_custom_user_agent", "")
+
+  val javBusCooldownUntil = preferenceStore.getLong("jav_bus_cooldown_until", 0L)
+  val javBusCooldownKind = preferenceStore.getString("jav_bus_cooldown_kind", "")
+  val javBusCooldownMessage = preferenceStore.getString("jav_bus_cooldown_message", "")
+
+  val javDbApiAuthCooldownUntil = preferenceStore.getLong("jav_db_api_auth_cooldown_until", 0L)
+  val javDbApiHostCooldowns = preferenceStore.getString("jav_db_api_host_cooldowns", "")
+
+  val javDbPageCooldownUntil = preferenceStore.getLong("jav_db_page_cooldown_until", 0L)
+  val javDbPageCooldownKind = preferenceStore.getString("jav_db_page_cooldown_kind", "")
+  val javDbPageCooldownMessage = preferenceStore.getString("jav_db_page_cooldown_message", "")
 }

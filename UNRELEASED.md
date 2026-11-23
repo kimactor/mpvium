@@ -35,6 +35,8 @@
 - Shader peek upscale chip no longer covers top-right player buttons when smart skip is absent.
 - JAV scraping works without a manual JavBus cookie or JavDB login; JavBus age-gate cookies are sent automatically and auth failures are reported once instead of retried for every item.
 - JAV scraping falls back to anonymous JavDB pages when its API asks for a login, restoring metadata and covers for FC2, amateur, and dated codes.
+- JAV source cooldowns and JavDB API host bans survive app restarts instead of retrying a blocked site immediately.
+- Cover prefetch skips JAV items whose retry time has not arrived and reports how many are waiting.
 - JAV subtitle matching no longer applies a longer release code's subtitle to a shorter code, or marks Japanese-named subtitles as Chinese.
 - JAV covers no longer crop away the sides of landscape artwork in the library.
 - JAV library keeps its scroll position when you come back from a video instead of jumping to the top.
