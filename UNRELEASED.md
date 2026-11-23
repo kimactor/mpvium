@@ -30,6 +30,7 @@
 
 ### Fixed
 
+- Repeated seekbar drags no longer freeze the player; mpv property polling and background MediaSession updates stay off the main thread.
 - Modern player layout custom action buttons scale consistently with built-in controls.
 - Shader peek upscale chip no longer covers top-right player buttons when smart skip is absent.
 - JAV scraping works without a manual JavBus cookie or JavDB login; JavBus age-gate cookies are sent automatically and auth failures are reported once instead of retried for every item.
