@@ -21,6 +21,7 @@ class JavMetadataRepository(
   private val javDao: JavDao,
   private val javBusSource: JavBusSource,
   private val javDbSource: JavDbPublicSource,
+  private val javDbPageSource: JavDbPageSource,
   private val dmmSource: DmmSource,
   private val artworkStore: StreamingArtworkStore,
   private val preferences: JavPreferences,
@@ -98,8 +99,8 @@ class JavMetadataRepository(
       host == "javbus.com" || host.endsWith(".javbus.com") -> javBusSource.coverHeaders()
       host == "javdb.com" ||
         host.endsWith(".javdb.com") ||
-        host.endsWith(".spfcas.com") ||
-        host.endsWith(".jdbstatic.com") -> javDbSource.coverHeaders()
+        host.endsWith(".spfcas.com") -> javDbSource.coverHeaders()
+      host.endsWith(".jdbstatic.com") -> javDbPageSource.coverHeaders()
       else -> emptyMap()
     }
   }
@@ -122,11 +123,37 @@ class JavMetadataRepository(
         }
     }
 
-    // FC2, amateur and dated codes are not in the DMM catalogue; JavDB was their only source.
-    // It now needs an account, so it is attempted first only when enabled and cools down after
-    // the first auth failure instead of costing two requests for every item.
+    suspend fun tryJavDb(recordError: Boolean) {
+      val api = attempt { javDbSource.fetch(code) }
+      if (api.isSuccess) {
+        val metadata = api.getOrThrow()
+        best = best?.let { merge(it, metadata) } ?: metadata
+        return
+      }
+      val apiError = api.exceptionOrNull() as? JavSourceException
+      if (apiError != null && apiError.kind == JavSourceFailureKind.NOT_FOUND) {
+        if (recordError) errors += apiError
+        return
+      }
+
+      // The API now asks for a login. Its pages still answer anonymously, so a failed or
+      // cooling-down API call falls through to the search page and detail page instead.
+      val page = attempt { javDbPageSource.fetch(code) }
+      if (page.isSuccess) {
+        val metadata = page.getOrThrow()
+        best = best?.let { merge(it, metadata) } ?: metadata
+        return
+      }
+      if (recordError) {
+        val pageError = page.exceptionOrNull() as? JavSourceException
+        (pageError ?: apiError)?.let { errors += it }
+      }
+    }
+
+    // FC2, amateur and dated codes are not in the DMM catalogue; JavDB is their only source.
+    // Try it first when enabled, then keep the JavBus fallback for codes it does not carry.
     if (javDbEnabled && preferJavDb) {
-      trySource { javDbSource.fetch(code) }
+      tryJavDb(recordError = true)
       best?.takeIf { it.isComplete() }?.let { return it }
     }
 
@@ -139,9 +166,9 @@ class JavMetadataRepository(
     }
 
     if (javDbEnabled && !preferJavDb) {
-      // JavDB is an optional enrichment source for standard codes now that its public API
-      // needs an account; do not let its auth error hide a real JavBus/DMM answer.
-      trySource(recordError = false) { javDbSource.fetch(code) }
+      // JavDB is optional enrichment for standard codes. The page fallback keeps it useful
+      // without an account and never hides a real JavBus/DMM answer.
+      tryJavDb(recordError = false)
       best?.takeIf { it.isComplete() }?.let { return it }
     }
 

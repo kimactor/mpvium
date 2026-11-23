@@ -98,6 +98,35 @@ class JavCodeParserTest {
   }
 
   @Test
+  fun parsesLabelsThatContainDigits() {
+    assertEquals("T28-612", JavCodeParser.parse("T28-612.mp4")?.code)
+    assertEquals(JavCodeKind.STANDARD, JavCodeParser.parse("T28-612.mp4")?.kind)
+    assertEquals("T38-076", JavCodeParser.parse("T38-076.mp4")?.code)
+    assertEquals("S2M-009", JavCodeParser.parse("S2M-009.mp4")?.code)
+    assertEquals(JavCodeKind.UNCENSORED, JavCodeParser.parse("S2M-009.mp4")?.kind)
+    assertEquals("S2MBD-014", JavCodeParser.parse("S2MBD-014.mp4")?.code)
+    assertEquals("S2MCR-08", JavCodeParser.parse("S2MCR-08.mp4")?.code)
+    assertEquals("CW3D2DBD-14", JavCodeParser.parse("CW3D2DBD-14.mp4")?.code)
+  }
+
+  @Test
+  fun padsRegisteredSerialWidths() {
+    assertEquals("T28-012", JavCodeParser.parse("T28-12.mp4")?.code)
+    assertEquals("S2M-009", JavCodeParser.parse("S2M-09.mp4")?.code)
+    assertEquals("S2MCR-08", JavCodeParser.parse("S2MCR-08.mp4")?.code)
+  }
+
+  @Test
+  fun parsesKirariAndIbwSuffix() {
+    assertEquals("MKD-S118", JavCodeParser.parse("MKD-S118.mp4")?.code)
+    assertEquals(JavCodeKind.UNCENSORED, JavCodeParser.parse("MKD-S118.mp4")?.kind)
+    assertEquals("MKBD-S89", JavCodeParser.parse("MKBD-S89.mp4")?.code)
+    assertEquals("IBW-483Z", JavCodeParser.parse("IBW-483z.mp4")?.code)
+    assertEquals(JavCodeKind.STANDARD, JavCodeParser.parse("IBW-483z.mp4")?.kind)
+    assertTrue(JavCodeParser.sameReleaseCode("IBW-483z", "IBW-483Z"))
+  }
+
+  @Test
   fun keepsPartSuffixOutOfCode() {
     assertEquals("ABP-123", JavCodeParser.parse("ABP-123-C.mp4")?.code)
     assertEquals("ABP-123", JavCodeParser.parse("ABP-123-4K.mp4")?.code)

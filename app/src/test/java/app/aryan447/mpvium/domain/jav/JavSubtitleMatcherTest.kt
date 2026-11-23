@@ -15,7 +15,12 @@ class JavSubtitleMatcherTest {
     assertTrue(JavSubtitleMatcher.matchesCode("SSIS-057.chs.srt", "SSIS-057"))
     assertTrue(JavSubtitleMatcher.matchesCode("ssis057.ass", "SSIS-057"))
     assertTrue(JavSubtitleMatcher.matchesCode("[Group] SSIS-057 中文字幕.srt", "SSIS-057"))
+    assertTrue(JavSubtitleMatcher.matchesCode("[hhd800.com]SSIS-057.chs.srt", "SSIS-057"))
     assertFalse(JavSubtitleMatcher.matchesCode("SSIS-058.srt", "SSIS-057"))
+    assertFalse(JavSubtitleMatcher.matchesCode("SSIS-0572.srt", "SSIS-057"))
+    assertFalse(JavSubtitleMatcher.matchesCode("ABP-1234.chs.srt", "ABP-123"))
+    assertFalse(JavSubtitleMatcher.matchesCode("IBW-483z.srt", "IBW-483"))
+    assertTrue(JavSubtitleMatcher.matchesCode("IBW-483z.srt", "IBW-483Z"))
     assertFalse(JavSubtitleMatcher.matchesCode("SSIS-057.mp4", "SSIS-057"))
   }
 
@@ -24,7 +29,12 @@ class JavSubtitleMatcherTest {
     assertTrue(JavSubtitleMatcher.isChineseName("SSIS-057.chs.srt"))
     assertTrue(JavSubtitleMatcher.isChineseName("SSIS-057.zh-CN.srt"))
     assertTrue(JavSubtitleMatcher.isChineseName("SSIS-057 中文字幕.srt"))
+    assertTrue(JavSubtitleMatcher.isChineseName("SSIS-057 繁體.srt"))
+    assertTrue(JavSubtitleMatcher.isChineseName("SSIS-057.cn.srt"))
     assertFalse(JavSubtitleMatcher.isChineseName("SSIS-057.eng.srt"))
+    assertFalse(JavSubtitleMatcher.isChineseName("SSIS-057.日本語.srt"))
+    assertFalse(JavSubtitleMatcher.isChineseName("SSIS-057 中出し.srt"))
+    assertFalse(JavSubtitleMatcher.isChineseName("SSIS-057 巨乳.srt"))
   }
 
   @Test

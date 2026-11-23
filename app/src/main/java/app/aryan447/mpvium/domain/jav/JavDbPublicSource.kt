@@ -78,7 +78,7 @@ class JavDbPublicSource(
   private suspend fun search(code: String): String {
     val data = request(
       path = "/api/v2/search",
-      query = mapOf("q" to searchQuery(code), "type" to "movie", "page" to "1"),
+      query = mapOf("q" to javDbSearchQuery(code), "type" to "movie", "page" to "1"),
     )
     val rows = data["movies"]?.jsonArray ?: throw parseError("JavDB search response did not contain movies")
     val ids = rows.mapNotNull { row ->
@@ -282,7 +282,4 @@ class JavDbPublicSource(
 
   private fun parseError(message: String) =
     JavSourceException(JavSourceFailureKind.PARSE, message)
-
-  private fun searchQuery(code: String): String =
-    if (code.startsWith("FC2-PPV-")) code.removePrefix("FC2-PPV-") else code
 }

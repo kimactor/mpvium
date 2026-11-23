@@ -20,6 +20,34 @@
 >
 > Older entries: see DEVLOG-archive/ (once archiving starts).
 
+## [2026-11-23 20:02] Change #12: Read JavDB metadata from anonymous pages when the API asks for a login
+- **Purpose**: JavDB's anonymous API returned `JWTVerificationError` for search and detail, so FC2, amateur, and dated codes (which have no DMM catalogue entry) had no metadata source. The repository skipped JavDB for six hours after the first auth failure.
+- **Approach**: Peach's ADR-0160/0166 and `sources/javdb.py` show that javdb.com pages still render anonymously after the API login wall. Peaches pacing is 12 s between search pages, 3 s between detail pages, and 403 is an egress-IP rate limit. The page carries the same fields as the API: code, date, runtime, actresses, studio, label, series, director, genres, and cover. Peach is AGPL-3.0 while mpvium is GPL-3.0, so the URL and field contract was reimplemented in Kotlin instead of copying code.
+- **Proposal**: Add a page source that searches `/search?q=<code>&f=all`, reads `/v/<id>?locale=zh`, and falls back from the API only after an API failure. Keep the existing JavDB toggle, anonymous reads, and no account cookie. Prefer the regular edition when the search returns a FANZA-limited duplicate.
+- **Decision**: Added `JavDbPageSource` with the site's search/detail pacing, in-memory cooldowns, an allowlist for JavDB cover hosts, Japanese-name preference for bilingual studios, and a fixture-tested parser. `JavMetadataRepository` now tries the API, then the page source, and records the page failure when both fail. `.jdbstatic.com` covers use the page source's browser headers; `tp.spfcas.com` covers keep the API headers. Updated the JAV settings copy.
+- **Files**: `domain/jav/JavDbPageSource.kt`, `domain/jav/JavDbPublicSource.kt`, `domain/jav/JavMetadataRepository.kt`, `di/DomainModule.kt`, `res/values/strings.xml`, `res/values-zh-rCN/strings.xml`, `app/src/test/java/app/aryan447/mpvium/domain/jav/JavDbPageSourceTest.kt`, `UNRELEASED.md`.
+- **Risks**: JavDB can change its page markup, add a Cloudflare challenge, or rate-limit the egress IP. Search pages are throttled to 12 s, so a large batch costs one search plus one detail page per code. Anonymous page access was verified by Peach on 2026-11-16, not from this device. No JavDB account cookie is used, so a page that truly requires sign-in still reports `AUTH_REQUIRED`.
+- **Verification**: Pending CI. Local checks: parser regexes exercised by JVM fixtures, `git diff --check` pending.
+- **Lesson**: Peach's changelog says the API is login-walled, but the usable fallback was in its ADRs and source page reader, not the changelog summary. Read the ADR/reuse notes when a changelog line sounds like a dead end.
+
+## [2026-11-23 20:03] Change #13: Recognize digit-bearing JAV labels and IBW's trailing z
+- **Purpose**: The generic letter-only parser missed codes such as `T28-612`, `S2M-009`, `S2MBD-014`, `S2MCR-08`, `CW3D2DBD-14`, `MKD-S118`, and `MKBD-S89`, and truncated `IBW-483z` to `IBW-483`. Files with those names never entered the JAV library.
+- **Approach**: Peach's `catalog_rules.py` keeps a curated `DIGIT_LABELS` list, a `SERIAL_WIDTHS` table, and a single `LABEL_SUFFIXES` exception for IBW. A generic relaxed regex would create false positives, so the same whitelist shape was ported. `ABP-123-C` and `ABP-123-4K` must keep dropping their trailing version marker.
+- **Proposal**: Parse digit-bearing labels before the generic standard pattern, order alternatives longest-first, pad registered serial widths, and recognize KIRARI `MKD-S`/`MKBD-S` and the `IBW-<digits>z` family.
+- **Decision**: Added the digit-label, KIRARI, and IBW patterns; `T28`/`T38` stay `STANDARD`, the S2M/CW3D2DBD/KIRARI groups become `UNCENSORED`. Added parser tests for all new shapes and the padding rule. `SORA-613A` remains a known limitation because it needs edition/part semantics, not a parser exception.
+- **Files**: `domain/jav/JavCodeParser.kt`, `app/src/test/java/app/aryan447/mpvium/domain/jav/JavCodeParserTest.kt`, `UNRELEASED.md`.
+- **Risks**: Whitelisted labels can still be misread in technical filenames; confidence stays at 0.95 so they auto-enter. Padding assumes the registered serial width is the canonical form.
+- **Verification**: Pending CI.
+
+## [2026-11-23 20:04] Change #14: Bound JAV subtitle code matching and stop treating any kanji as Chinese
+- **Purpose**: `ABP-1234.chs.srt` matched `ABP-123` because the fallback used a normalized `contains`, so a longer release could load the wrong subtitle. `isChineseName` returned true for any filename containing a CJK character, so a Japanese-named sidecar such as `SSIS-057.日本語.srt` was badged and auto-selected as Chinese.
+- **Approach**: Keep the exact parser result as the first check, then use a separator-tolerant regex with alphanumeric boundaries. Split language detection into explicit Chinese name words, a kana rejection, and ASCII language tokens; this keeps `zh-CN`, `chs`, `中文`, and `繁體` working while rejecting Japanese titles.
+- **Proposal**: Use boundaries on both sides of the code, add `cn`/`ch`/`chinese` to the token set, and treat CJK characters as neutral unless an explicit Chinese word is present.
+- **Decision**: Implemented `codePattern`, added the kana check and Chinese name words, and added regression tests for `ABP-1234`, `SSIS-0572`, `IBW-483z`, `日本語`, `中出し`, and `繁體`.
+- **Files**: `domain/jav/JavSubtitleSupport.kt`, `app/src/test/java/app/aryan447/mpvium/domain/jav/JavSubtitleMatcherTest.kt`, `UNRELEASED.md`.
+- **Risks**: A Chinese subtitle named only with a shared-kanji title and no language token is no longer detected; the previous behavior was a false positive for Japanese names, and tokens cover the common releases.
+- **Verification**: Pending CI.
+
 ## [2026-11-18 21:10] Change #11: Surface watch state, search, filters, and multi-select in the JAV library
 - **Purpose**: The JAV library only listed title, code, and actresses. It had no search, filter, or sort, no resume/watched indicators, no long-press actions, and the detail screen hid the scraped overview and file facts behind a flat metadata list.
 - **Approach**: Reuse the existing library interaction language instead of inventing a JAV-only one: `LibraryFilterBar` chips plus sort menu, `TitleWatchFilter`-style watch states, `LibraryResultCount`, `MarkAsDialog`, and `VideoWatchStatusOps`. Read watch state with one `PlaybackStateDao.getAllPlaybackStates()` query per load and subtitle presence with a batched file scan, so cards stay cheap. Keep the Room schema untouched; sorting/filtering is client-side over the loaded list.
