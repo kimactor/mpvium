@@ -104,6 +104,16 @@ class JavDbPageSourceTest {
   }
 
   @Test
+  fun dropsEmptyPlaceholderFields() {
+    val detail = detailHtml.replace(
+      "<span class=\"value\">監督名</span>",
+      "<span class=\"value\">----</span>",
+    )
+
+    assertNull(JavDbPageParser.detail(detail).director)
+  }
+
+  @Test
   fun rejectsCoversOutsideJavdbHosts() {
     val detail = detailHtml.replace(
       "https://c0.jdbstatic.com/covers/ss/SSIS-057.jpg",

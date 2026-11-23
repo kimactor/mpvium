@@ -290,10 +290,12 @@ internal object JavDbPageParser {
     val panels = PANEL.findAll(html).associate { match ->
       clean(match.groupValues[1]) to match.groupValues[2]
     }
-    val code = panel(panels, FIELD_CODE, FIELD_CODE_SIMPLIFIED)
-      .replace(WHITESPACE, "")
-      .replace("\u00a0", "")
-      .replace("\u3000", "")
+    val code = optional(
+      panel(panels, FIELD_CODE, FIELD_CODE_SIMPLIFIED)
+        .replace(WHITESPACE, "")
+        .replace("\u00a0", "")
+        .replace("\u3000", ""),
+    ).orEmpty()
     if (code.isBlank()) {
       throw JavSourceException(
         JavSourceFailureKind.PARSE,
@@ -301,8 +303,12 @@ internal object JavDbPageParser {
       )
     }
 
-    val displayTitle = CURRENT_TITLE.find(html)?.groupValues?.get(1)?.let(::clean).orEmpty()
-    val originalTitle = ORIGIN_TITLE.find(html)?.groupValues?.get(1)?.let(::clean).orEmpty()
+    val displayTitle = optional(
+      CURRENT_TITLE.find(html)?.groupValues?.get(1)?.let(::clean).orEmpty(),
+    ).orEmpty()
+    val originalTitle = optional(
+      ORIGIN_TITLE.find(html)?.groupValues?.get(1)?.let(::clean).orEmpty(),
+    ).orEmpty()
     val pageTitle = PAGE_TITLE.find(html)?.groupValues?.get(1)
       ?.let(::clean)
       ?.substringBefore(" | JavDB")
@@ -340,13 +346,12 @@ internal object JavDbPageParser {
       code = code,
       displayTitle = displayTitle.ifBlank { pageTitle },
       originalTitle = originalTitle,
-      releaseDate = panel(panels, FIELD_DATE).takeIf { it.isNotBlank() },
+      releaseDate = optional(panel(panels, FIELD_DATE)),
       runtimeMinutes = runtime?.takeIf { it > 0 },
-      studio = preferJapanese(panel(panels, FIELD_STUDIO)).takeIf { it.isNotBlank() },
-      label = panel(panels, FIELD_LABEL, FIELD_LABEL_SIMPLIFIED).takeIf { it.isNotBlank() },
-      series = panel(panels, FIELD_SERIES).takeIf { it.isNotBlank() },
-      director = panel(panels, FIELD_DIRECTOR, FIELD_DIRECTOR_SIMPLIFIED)
-        .takeIf { it.isNotBlank() },
+      studio = optional(preferJapanese(panel(panels, FIELD_STUDIO))),
+      label = optional(panel(panels, FIELD_LABEL, FIELD_LABEL_SIMPLIFIED)),
+      series = optional(panel(panels, FIELD_SERIES)),
+      director = optional(panel(panels, FIELD_DIRECTOR, FIELD_DIRECTOR_SIMPLIFIED)),
       genres = genres,
       actresses = actresses,
       coverUrl = coverUrl(html),
@@ -409,6 +414,10 @@ internal object JavDbPageParser {
 
   private fun panel(panels: Map<String, String>, vararg names: String): String =
     names.firstNotNullOfOrNull { panels[it] }.orEmpty()
+
+  /** JavDB writes `----` in empty fields; keep that out of the metadata. */
+  private fun optional(value: String): String? =
+    value.takeUnless { it.isBlank() || it.all { character -> character == '-' } }
 
   private fun clean(value: String): String =
     decodeEntities(value.replace(TAG, " ")).replace(WHITESPACE, " ").trim()
