@@ -27,8 +27,8 @@
 - **Decision**: Added `JavDbPageSource` with the site's search/detail pacing, in-memory cooldowns, an allowlist for JavDB cover hosts, Japanese-name preference for bilingual studios, and a fixture-tested parser. `JavMetadataRepository` now tries the API, then the page source, and records the page failure when both fail. `.jdbstatic.com` covers use the page source's browser headers; `tp.spfcas.com` covers keep the API headers. Updated the JAV settings copy.
 - **Files**: `domain/jav/JavDbPageSource.kt`, `domain/jav/JavDbPublicSource.kt`, `domain/jav/JavMetadataRepository.kt`, `di/DomainModule.kt`, `res/values/strings.xml`, `res/values-zh-rCN/strings.xml`, `app/src/test/java/app/aryan447/mpvium/domain/jav/JavDbPageSourceTest.kt`, `UNRELEASED.md`.
 - **Risks**: JavDB can change its page markup, add a Cloudflare challenge, or rate-limit the egress IP. Search pages are throttled to 12 s, so a large batch costs one search plus one detail page per code. Anonymous page access was verified by Peach on 2026-11-16, not from this device. No JavDB account cookie is used, so a page that truly requires sign-in still reports `AUTH_REQUIRED`.
-- **Verification**: Pending CI. Local checks: parser regexes exercised by JVM fixtures, `git diff --check` pending.
-- **Lesson**: Peach's changelog says the API is login-walled, but the usable fallback was in its ADRs and source page reader, not the changelog summary. Read the ADR/reuse notes when a changelog line sounds like a dead end.
+- **Verification**: PR #7 Unit Tests run 45171838585 passed in 3m48s and CI Build run 45171838932 passed in 5m4s on `14cf1d2`; the first revision also passed Unit Tests run 45171229792. Both `strings.xml` files parse as UTF-8 XML with no duplicate keys, the page/search/field regexes were exercised against a JavDB-shaped fixture, and `git diff --check` is clean. No live JavDB request or device check was run, and the APK artifact was not downloaded.
+- **Lesson**: Peach's changelog says the API is login-walled, but the usable fallback was in its ADRs and source page reader, not the changelog summary. Read the ADR/reuse notes when a changelog line sounds like a dead end. The follow-up parser polish (`----` placeholders, exact-identity preference) needed a second commit because the first CI run started before the page fixtures covered the empty-field shape.
 
 ## [2026-11-23 20:03] Change #13: Recognize digit-bearing JAV labels and IBW's trailing z
 - **Purpose**: The generic letter-only parser missed codes such as `T28-612`, `S2M-009`, `S2MBD-014`, `S2MCR-08`, `CW3D2DBD-14`, `MKD-S118`, and `MKBD-S89`, and truncated `IBW-483z` to `IBW-483`. Files with those names never entered the JAV library.
@@ -37,7 +37,8 @@
 - **Decision**: Added the digit-label, KIRARI, and IBW patterns; `T28`/`T38` stay `STANDARD`, the S2M/CW3D2DBD/KIRARI groups become `UNCENSORED`. Added parser tests for all new shapes and the padding rule. `SORA-613A` remains a known limitation because it needs edition/part semantics, not a parser exception.
 - **Files**: `domain/jav/JavCodeParser.kt`, `app/src/test/java/app/aryan447/mpvium/domain/jav/JavCodeParserTest.kt`, `UNRELEASED.md`.
 - **Risks**: Whitelisted labels can still be misread in technical filenames; confidence stays at 0.95 so they auto-enter. Padding assumes the registered serial width is the canonical form.
-- **Verification**: Pending CI.
+- **Verification**: Same PR #7 Unit Tests run 45171838585 and CI Build run 45171838932 passed. Before CI, the Kotlin regexes were mirrored in Python and run over all new cases; that harness caught the KIRARI code being formatted as `MKD-S-118` instead of `MKD-S118`, which was fixed before the run.
+- **Lesson**: A hand-translated regex needs the same fixtures in a second implementation; the `-S` in the KIRARI label already carries the separator, so adding another hyphen produced a code the source would never match.
 
 ## [2026-11-23 20:04] Change #14: Bound JAV subtitle code matching and stop treating any kanji as Chinese
 - **Purpose**: `ABP-1234.chs.srt` matched `ABP-123` because the fallback used a normalized `contains`, so a longer release could load the wrong subtitle. `isChineseName` returned true for any filename containing a CJK character, so a Japanese-named sidecar such as `SSIS-057.日本語.srt` was badged and auto-selected as Chinese.
@@ -46,7 +47,7 @@
 - **Decision**: Implemented `codePattern`, added the kana check and Chinese name words, and added regression tests for `ABP-1234`, `SSIS-0572`, `IBW-483z`, `日本語`, `中出し`, and `繁體`.
 - **Files**: `domain/jav/JavSubtitleSupport.kt`, `app/src/test/java/app/aryan447/mpvium/domain/jav/JavSubtitleMatcherTest.kt`, `UNRELEASED.md`.
 - **Risks**: A Chinese subtitle named only with a shared-kanji title and no language token is no longer detected; the previous behavior was a false positive for Japanese names, and tokens cover the common releases.
-- **Verification**: Pending CI.
+- **Verification**: Same PR #7 Unit Tests run 45171838585 and CI Build run 45171838932 passed; `git diff --check` is clean.
 
 ## [2026-11-18 21:10] Change #11: Surface watch state, search, filters, and multi-select in the JAV library
 - **Purpose**: The JAV library only listed title, code, and actresses. It had no search, filter, or sort, no resume/watched indicators, no long-press actions, and the detail screen hid the scraped overview and file facts behind a flat metadata list.
