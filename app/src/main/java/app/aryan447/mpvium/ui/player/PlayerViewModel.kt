@@ -33,6 +33,7 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.Flow
@@ -55,6 +56,7 @@ import kotlinx.serialization.json.Json
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.File
+import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 import androidx.documentfile.provider.DocumentFile
 import app.aryan447.mpvium.preferences.AdvancedPreferences
@@ -170,6 +172,16 @@ class PlayerViewModel(
   private val _precisePosition = MutableStateFlow(0f)
   val precisePosition = _precisePosition.asStateFlow()
 
+  /**
+   * MPVLib property reads are blocking JNI calls. Seeking holds the mpv property/core lock
+   * for a noticeable time, so polling from Dispatchers.Main freezes the UI (and repeated
+   * seekbar drags make it worse). Keep the pollers on one dedicated thread.
+   */
+  private val mpvPollExecutor = Executors.newSingleThreadExecutor { runnable ->
+    Thread(runnable, "mpv-property-poll").apply { isDaemon = true }
+  }
+  private val mpvPollDispatcher = mpvPollExecutor.asCoroutineDispatcher()
+
   // Seek settling guard: prevents seekbar and timers from snapping back
   // to stale pre-seek time-pos polls while libmpv processes an asynchronous seek.
   @Volatile
@@ -243,8 +255,9 @@ class PlayerViewModel(
   private val volumeBoostCap by MPVLib.propInt["volume-max"].collectAsState(viewModelScope)
 
   init {
-    // Poll precise position only when playing
-    viewModelScope.launch {
+    // Poll precise position only when playing. This loop reads a blocking mpv property;
+    // keep it off Dispatchers.Main (which is viewModelScope's default).
+    viewModelScope.launch(mpvPollDispatcher) {
       while (isActive) {
         val time = MPVLib.getPropertyDouble("time-pos")?.toFloat()
         if (time != null) {
@@ -276,7 +289,7 @@ class PlayerViewModel(
     }
 
     // Update precise duration when the integer duration changes (avoid polling)
-    viewModelScope.launch {
+    viewModelScope.launch(mpvPollDispatcher) {
       MPVLib.propInt["duration"].collect { _ ->
         val dur = MPVLib.getPropertyDouble("duration")
         if (dur != null && dur > 0) {
@@ -285,15 +298,18 @@ class PlayerViewModel(
       }
     }
 
-    // Detect when playback enters an intro/recap window so the UI can offer a skip
+    // Detect when playback enters an intro/recap window so the UI can offer a skip.
+    // The loop touches UI-owned state, so only the blocking mpv read moves off main.
     viewModelScope.launch {
       while (isActive) {
         val windows = _introSkipWindows.value
         val titleKnown = currentMediaTitle.isNotBlank()
         if (windows.isNotEmpty() && titleKnown) {
-          val pos = MPVLib.getPropertyDouble("time-pos")?.toInt()
-            ?: MPVLib.getPropertyInt("time-pos")
-            ?: 0
+          val pos = withContext(mpvPollDispatcher) {
+            MPVLib.getPropertyDouble("time-pos")?.toInt()
+              ?: MPVLib.getPropertyInt("time-pos")
+              ?: 0
+          }
 
           // Un-dismiss windows if user seeks backward before their start
           dismissedWindows.removeAll { it.startSeconds > pos }
@@ -459,7 +475,7 @@ class PlayerViewModel(
     _shuffleEnabled.value = playerPreferences.shuffleEnabled.get()
 
     // Observe volume boost cap changes to enforce limits dynamically (in PiP)
-    viewModelScope.launch {
+    viewModelScope.launch(mpvPollDispatcher) {
       audioPreferences.volumeBoostCap.changes().collect { cap ->
         val maxVol = 100 + cap
         runCatching {
@@ -477,7 +493,7 @@ class PlayerViewModel(
     }
 
     // Monitor duration and AB loop changes to automatically enable precise seeking
-    viewModelScope.launch {
+    viewModelScope.launch(mpvPollDispatcher) {
       combine(
         MPVLib.propInt["duration"],
         abLoopA,
@@ -588,7 +604,9 @@ class PlayerViewModel(
           _remainingTime.value = time
           delay(1000)
         }
-        MPVLib.setPropertyBoolean("pause", true)
+        withContext(mpvPollDispatcher) {
+          MPVLib.setPropertyBoolean("pause", true)
+        }
         showToast(host.context.getString(R.string.toast_sleep_timer_ended))
       }
   }
@@ -872,8 +890,7 @@ class PlayerViewModel(
   private var shadersBypassed = false
   private var activeShaderChain: String? = null
 
-  private fun updateShaderPeek() {
-    val videoHeight = MPVLib.getPropertyInt("video-params/h") ?: 0
+  private fun updateShaderPeek(videoHeight: Int) {
     val gpuCompatible = !(decoderPreferences.gpuNext.get() && !decoderPreferences.useVulkan.get())
     val enabled = decoderPreferences.enableAnime4K.get()
     val mode = decoderPreferences.anime4kMode.get()
@@ -1057,19 +1074,35 @@ class PlayerViewModel(
       .replace(Regex("\\s+"), " ")
       .trim()
 
+  private data class AuxiliaryPollSnapshot(
+    val position: Int,
+    val subtitle: String?,
+    val videoHeight: Int,
+  )
+
   /**
    * Auxiliary 250ms poller for Smart Skip, Shader Peek and the Explain
    * line. Declared here — after every state property above — because
    * coroutines launched on Dispatchers.Main.immediate run their first
    * tick synchronously: touching not-yet-initialized properties from an
    * init-block launch crashes Player creation with an NPE.
+   *
+   * The loop stays on Main because it touches UI-owned state; only the
+   * blocking mpv property reads are handed to [mpvPollDispatcher].
    */
   @Suppress("unused")
   private val auxiliaryPoller = viewModelScope.launch {
     while (isActive) {
-      val pos = MPVLib.getPropertyDouble("time-pos")?.toInt()
-        ?: MPVLib.getPropertyInt("time-pos")
-        ?: 0
+      val snapshot = withContext(mpvPollDispatcher) {
+        AuxiliaryPollSnapshot(
+          position = MPVLib.getPropertyDouble("time-pos")?.toInt()
+            ?: MPVLib.getPropertyInt("time-pos")
+            ?: 0,
+          subtitle = runCatching { MPVLib.getPropertyString("sub-text") }.getOrNull(),
+          videoHeight = MPVLib.getPropertyInt("video-params/h") ?: 0,
+        )
+      }
+      val pos = snapshot.position
 
       // Smart Skip: the API window wins, otherwise fall back to the
       // chapter-title heuristic (e.g. "Opening", "Recap").
@@ -1088,12 +1121,12 @@ class PlayerViewModel(
       _smartSkipRemaining.value = smart?.let { (it.targetSeconds - pos).coerceAtLeast(0) } ?: 0
 
       // Shader Peek availability follows the video height and prefs.
-      updateShaderPeek()
+      updateShaderPeek(snapshot.videoHeight)
 
       // Track the latest subtitle line for Explain (keeps the last
       // non-blank line so the sheet stays useful between lines).
       runCatching {
-        val rawSub = MPVLib.getPropertyString("sub-text")
+        val rawSub = snapshot.subtitle
         if (!rawSub.isNullOrBlank()) {
           val cleaned = cleanSubtitleText(rawSub)
           if (cleaned.isNotBlank() && cleaned != _subtitleLine.value) {
@@ -1446,13 +1479,16 @@ class PlayerViewModel(
     val sequence = seekSequence.incrementAndGet()
     val cachedDuration = duration
     viewModelScope.launch(Dispatchers.IO) {
-      dispatchAbsoluteSeek(
+      val applied = dispatchAbsoluteSeek(
         position = position,
         isScrubbing = false,
         sequence = sequence,
         cachedDuration = cachedDuration,
         forceExact = exact,
       )
+      // A newer drag/tap may have superseded this seek. Do not grab audio focus or
+      // unpause for a request that was dropped; the newer interaction owns playback.
+      if (!applied) return@launch
       withContext(Dispatchers.Main) { host.requestAudioFocus() }
       MPVLib.setPropertyBoolean("pause", false)
     }
@@ -2565,6 +2601,7 @@ class PlayerViewModel(
   override fun onCleared() {
     cachePollJob?.cancel()
     cachePollJob = null
+    mpvPollExecutor.shutdownNow()
     super.onCleared()
   }
 }

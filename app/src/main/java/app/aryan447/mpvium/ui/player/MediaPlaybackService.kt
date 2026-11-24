@@ -25,8 +25,14 @@ import app.aryan447.mpvium.R
 import `is`.xyz.mpv.MPVLib
 import `is`.xyz.mpv.MPVNode
 import app.aryan447.mpvium.preferences.PlayerPreferences
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Background playback service for mpv with MediaSession integration.
@@ -76,11 +82,17 @@ class MediaPlaybackService :
   private lateinit var mediaSession: MediaSessionCompat
   private val playerPreferences: PlayerPreferences by inject()
 
-  private var mediaTitle = ""
-  private var mediaArtist = ""
-  private var paused = false
-  private var lastNotificationUpdateTime = 0L
+  @Volatile private var mediaTitle = ""
+  @Volatile private var mediaArtist = ""
+  @Volatile private var paused = false
+  @Volatile private var lastNotificationUpdateTime = 0L
+  @Volatile private var lastKnownPositionMs = 0L
   private val notificationUpdateIntervalMs = 1000L // Update notification every 1 second
+
+  // MediaSession/notification work must not run on mpv's event thread, and the
+  // blocking duration read should not run on the UI thread either.
+  private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+  private val updateScheduled = AtomicBoolean(false)
 
   inner class MediaPlaybackBinder : Binder() {
     fun getService() = this@MediaPlaybackService
@@ -144,7 +156,7 @@ class MediaPlaybackService :
 
     paused = MPVLib.getPropertyBoolean("pause") == true
 
-    updateMediaSession()
+    requestMediaSessionUpdate(force = true)
 
     // Always start as foreground service with notification (like YouTube)
     try {
@@ -187,7 +199,7 @@ class MediaPlaybackService :
     MediaPlaybackService.thumbnail = thumbnail
     mediaTitle = title
     mediaArtist = artist
-    updateMediaSession()
+    requestMediaSessionUpdate(force = true)
   }
 
   private fun setupMediaSession() {
@@ -256,6 +268,20 @@ class MediaPlaybackService :
     sessionToken = mediaSession.sessionToken
   }
 
+  private fun requestMediaSessionUpdate(force: Boolean = false) {
+    val now = System.currentTimeMillis()
+    if (!force && now - lastNotificationUpdateTime < notificationUpdateIntervalMs) return
+    lastNotificationUpdateTime = now
+    if (!updateScheduled.compareAndSet(false, true)) return
+    serviceScope.launch {
+      try {
+        updateMediaSession()
+      } finally {
+        updateScheduled.set(false)
+      }
+    }
+  }
+
   private fun updateMediaSession() {
     try {
       // Ensure we have valid media title
@@ -280,10 +306,9 @@ class MediaPlaybackService :
       }
       mediaSession.setMetadata(metadataBuilder.build())
 
-      // Update playback state
-      val position = runCatching {
-        MPVLib.getPropertyDouble("time-pos")?.times(1000)?.toLong()
-      }.getOrNull() ?: 0L
+      // Update playback state from the latest observer value. Reading time-pos here
+      // would re-enter mpv, and the observer can run on mpv's event thread.
+      val position = lastKnownPositionMs
 
       val state = if (paused) PlaybackStateCompat.STATE_PAUSED else PlaybackStateCompat.STATE_PLAYING
 
@@ -401,7 +426,7 @@ class MediaPlaybackService :
   ) {
     if (property == "pause") {
       paused = value
-      updateMediaSession()
+      requestMediaSessionUpdate(force = true)
     }
   }
 
@@ -413,12 +438,12 @@ class MediaPlaybackService :
       "media-title" -> {
         if (value.isNotBlank()) {
           mediaTitle = value
-          updateMediaSession()
+          requestMediaSessionUpdate(force = true)
         }
       }
       "metadata/artist" -> {
         mediaArtist = value
-        updateMediaSession()
+        requestMediaSessionUpdate(force = true)
       }
     }
   }
@@ -428,12 +453,8 @@ class MediaPlaybackService :
     value: Double,
   ) {
     if (property == "time-pos") {
-      // Throttle notification updates to avoid excessive updates
-      val currentTime = System.currentTimeMillis()
-      if (currentTime - lastNotificationUpdateTime >= notificationUpdateIntervalMs) {
-        lastNotificationUpdateTime = currentTime
-        updateMediaSession()
-      }
+      lastKnownPositionMs = (value * 1000).toLong()
+      requestMediaSessionUpdate()
     }
   }
 
@@ -453,6 +474,7 @@ class MediaPlaybackService :
     try {
       Log.d(TAG, "Service destroyed")
 
+      serviceScope.cancel()
       isServiceRunning = false
 
       // Remove MPV observer safely
