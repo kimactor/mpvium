@@ -430,8 +430,8 @@ class PlayerActivity :
 
     // Only auto-generate playlist from folder if playlist mode is enabled and no playlist_id
     if (playlist.isEmpty() && playlistId == null && playerPreferences.playlistMode.get()) {
-      val path = parsePathFromIntent(intent)
-      if (path != null) {
+      lifecycleScope.launch(Dispatchers.IO) {
+        val path = parsePathFromIntent(intent) ?: return@launch
         generatePlaylistFromFolder(path)
       }
     }
@@ -466,9 +466,13 @@ class PlayerActivity :
       }
     }
 
-    getPlayableUri(intent)?.let { uri ->
-      applySeekCacheOptionsBeforeLoadfile(uri)
-      player.playFile(uri)
+    // JAV/library entries can carry a content:// URI. Resolving it opens a file
+    // descriptor and queries MediaStore, so keep that off the main thread. The
+    // intent's file_path fast path usually returns without any resolver work.
+    lifecycleScope.launch {
+      val playableUri = withContext(Dispatchers.IO) { getPlayableUri(intent) } ?: return@launch
+      applySeekCacheOptionsBeforeLoadfile(playableUri)
+      player.playFile(playableUri)
     }
 
     // Only set orientation immediately if NOT in Video mode
@@ -1395,12 +1399,19 @@ class PlayerActivity :
    * @param intent The intent containing the file URI
    * @return The resolved file path, or null if not found
    */
-  private fun parsePathFromIntent(intent: Intent): String? =
-    when (intent.action) {
+  private fun parsePathFromIntent(intent: Intent): String? {
+    // Internal video launches already know the real path. Resolving a content:// URI
+    // opens a file descriptor and queries MediaStore, which must not happen on the
+    // main thread during playback start.
+    intent.getStringExtra("file_path")
+      ?.takeIf { it.isNotBlank() && File(it).canRead() }
+      ?.let { return it }
+    return when (intent.action) {
       Intent.ACTION_VIEW -> intent.data?.resolveUri(this)
       Intent.ACTION_SEND -> parsePathFromSendIntent(intent)
       else -> intent.getStringExtra("uri") ?: intent.data?.resolveUri(this)
     }
+  }
 
   /**
    * Parses the file path from a SEND intent.
@@ -1440,6 +1451,9 @@ class PlayerActivity :
     // First check if a custom title/filename was provided via intent extras
     intent.getStringExtra("title")?.let { return it }
     intent.getStringExtra("filename")?.let { return it }
+    // Internal video launches carry the MediaStore display name; avoid a main-thread
+    // ContentResolver query for content:// URIs (JAV library entries use those).
+    intent.getStringExtra("display_name")?.takeIf { it.isNotBlank() }?.let { return it }
 
     val uri = extractUriFromIntent(intent) ?: return ""
 
@@ -1955,8 +1969,15 @@ class PlayerActivity :
             videoUri = videoUri,
           )
         } else {
-          // Regular file or direct network stream
-          val filePath = parsePathFromIntent(intent)
+          // Regular file or direct network stream. Prefer the known path and pass a
+          // content:// URI through as-is; resolving it here would open an fd/MediaStore
+          // query on the main thread. SubtitleOps already has a content:// branch.
+          val filePath = intent.getStringExtra("file_path")
+            ?.takeIf { it.isNotBlank() && File(it).canRead() }
+            ?: intent.data?.let { data ->
+              if (data.scheme == "file") data.path else data.toString()
+            }
+            ?: withContext(Dispatchers.IO) { parsePathFromIntent(intent) }
           if (filePath != null) {
             SubtitleOps.autoloadSubtitles(
               videoFilePath = filePath,
@@ -2650,8 +2671,8 @@ class PlayerActivity :
 
     // Auto-generate playlist from folder if playlist mode is enabled and no playlist_id
     if (playlist.isEmpty() && playlistId == null && playerPreferences.playlistMode.get()) {
-      val path = parsePathFromIntent(intent)
-      if (path != null) {
+      lifecycleScope.launch(Dispatchers.IO) {
+        val path = parsePathFromIntent(intent) ?: return@launch
         generatePlaylistFromFolder(path)
       }
     }
@@ -2689,13 +2710,11 @@ class PlayerActivity :
     // Set HTTP headers (including referer) BEFORE loading the new file
     setHttpHeadersFromExtras(intent.extras)
 
-    // Load the new file
-    getPlayableUri(intent)?.let { uri ->
-      applySeekCacheOptionsBeforeLoadfile(uri)
-      // Avoid blocking UI thread while mpv opens network streams (e.g., HLS).
-      lifecycleScope.launch(Dispatchers.Default) {
-        MPVLib.command("loadfile", uri)
-      }
+    // Load the new file. Resolve content:// URIs off the main thread as well.
+    lifecycleScope.launch(Dispatchers.IO) {
+      val playableUri = getPlayableUri(intent) ?: return@launch
+      applySeekCacheOptionsBeforeLoadfile(playableUri)
+      MPVLib.command("loadfile", playableUri)
     }
   }
 

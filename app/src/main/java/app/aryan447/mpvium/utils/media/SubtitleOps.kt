@@ -239,7 +239,9 @@ object SubtitleOps : KoinComponent {
         )
     if (ordered.isEmpty()) return
     val selectedIndex = ordered.indexOfFirst { JavSubtitleMatcher.isChineseName(it.name) }.takeIf { it >= 0 } ?: 0
-    withContext(Dispatchers.Main) {
+    // MPVLib.command is a blocking JNI call. JAV entry can add several sidecar and
+    // downloaded subtitles, so keep it off the main thread just like the network path.
+    withContext(Dispatchers.IO) {
       ordered.forEachIndexed { index, subtitle ->
         val flag = if (index == selectedIndex) "select" else "auto"
         MPVLib.command("sub-add", subtitle.absolutePath, flag, subtitle.name)
@@ -264,7 +266,8 @@ object SubtitleOps : KoinComponent {
       } ?: emptyList()
 
     if (subtitles.isNotEmpty()) {
-      withContext(Dispatchers.Main) {
+      // Blocking JNI: keep local subtitle adds off the main thread as well.
+      withContext(Dispatchers.IO) {
         subtitles.forEachIndexed { index, subtitle ->
           // MPV command format: sub-add <url> [<flags> [<title>]]
           // Use "select" for the first autoloaded subtitle so it is enabled by default
