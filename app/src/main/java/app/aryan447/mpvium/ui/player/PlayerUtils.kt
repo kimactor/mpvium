@@ -33,15 +33,11 @@ private object StoragePaths {
  *
  * Falls back to file descriptor if real path cannot be determined.
  */
-internal fun Uri.openContentFd(context: Context): String? {
-  // File URIs already carry a directly playable path. Do not run the content-resolver
-  // probes (fd, MediaStore, DocumentsContract) for them on the caller thread.
-  if (scheme == "file") return path
-  return tryFileDescriptorPath(context)
+internal fun Uri.openContentFd(context: Context): String? =
+  tryFileDescriptorPath(context)
     ?: tryMediaStoreQuery(context)
     ?: tryDocumentUriParsing(context)
     ?: tryFileDescriptorFallback(context)
-}
 
 /**
  * Method 1: Extract real filesystem path from file descriptor.

@@ -59,8 +59,6 @@ object MediaUtils {
           val intent = Intent(Intent.ACTION_VIEW, source.uri)
           intent.setClass(context, PlayerActivity::class.java)
           intent.putExtra("internal_launch", true) // Enables subtitle autoload
-          intent.putExtra("display_name", source.displayName)
-          intent.putExtra("file_path", source.path)
           launchSource?.let { intent.putExtra("launch_source", it) }
           mediaCode?.takeIf { it.isNotBlank() }?.let { intent.putExtra("media_code", it) }
 

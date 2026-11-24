@@ -30,7 +30,6 @@
 
 ### Fixed
 
-- JAV playback no longer freezes on entry or during seekbar drags; library launches use the known file path instead of resolving a content URI on the main thread, and JAV subtitles are added off the main thread.
 - Repeated seekbar drags no longer freeze the player; mpv property polling and background MediaSession updates stay off the main thread.
 - Modern player layout custom action buttons scale consistently with built-in controls.
 - Shader peek upscale chip no longer covers top-right player buttons when smart skip is absent.
