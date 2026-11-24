@@ -137,15 +137,25 @@ class JavBatchWorker(
       )
     }
 
-    val alreadyCached = allItems.count { it.hasUsableCover() }
-    val targets = allItems.filterNot { it.hasUsableCover() }.sortedBy { it.code }
+    val selection = JavPrefetchSelector.select(
+      items = allItems,
+      now = System.currentTimeMillis(),
+      hasCover = { it.hasUsableCover() },
+    )
+    val alreadyCached = selection.alreadyCached
+    val targets = selection.targets
     if (targets.isEmpty()) {
       return Result.success(
         workDataOf(
           KEY_DONE to 0,
           KEY_TOTAL to 0,
           JavBatchScheduler.KEY_ALREADY_CACHED to alreadyCached,
-          JavBatchScheduler.KEY_REASON to JavBatchScheduler.REASON_ALL_CACHED,
+          JavBatchScheduler.KEY_SKIPPED to selection.skipped,
+          JavBatchScheduler.KEY_REASON to if (selection.skipped > 0) {
+            JavBatchScheduler.REASON_RETRY_WAITING
+          } else {
+            JavBatchScheduler.REASON_ALL_CACHED
+          },
         ),
       )
     }
@@ -220,6 +230,7 @@ class JavBatchWorker(
         JavBatchScheduler.KEY_FAILED to failed,
         JavBatchScheduler.KEY_NO_COVER to noCover,
         JavBatchScheduler.KEY_ALREADY_CACHED to alreadyCached,
+        JavBatchScheduler.KEY_SKIPPED to selection.skipped,
         JavBatchScheduler.KEY_REASON to reason,
       ),
     )

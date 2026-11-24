@@ -6,6 +6,7 @@ import app.aryan447.mpvium.domain.audio.AudioArtworkStore
 import app.aryan447.mpvium.domain.audio.AudioRepository
 import app.aryan447.mpvium.domain.jav.DmmSource
 import app.aryan447.mpvium.domain.jav.JavBusSource
+import app.aryan447.mpvium.domain.jav.JavDbPageSource
 import app.aryan447.mpvium.domain.jav.JavDbPublicSource
 import app.aryan447.mpvium.domain.jav.JavHttpClientFactory
 import app.aryan447.mpvium.domain.jav.JavLibraryRepository
@@ -45,8 +46,9 @@ val domainModule = module {
     single { JavHttpClientFactory(get()) }
     single { JavBusSource(get(), get()) }
     single { JavDbPublicSource(get(), get(), get()) }
+    single { JavDbPageSource(get(), get()) }
     single { DmmSource(get(), get(), get()) }
-    single { JavMetadataRepository(get(), get(), get(), get(), get(), get(), get(), get()) }
+    single { JavMetadataRepository(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     single { JavLibraryRepository(get(), get(), get(), get(), get()) }
     single { JavSubtitleRepository(androidContext()) }
     single { SubtitleCatSource(get()) }

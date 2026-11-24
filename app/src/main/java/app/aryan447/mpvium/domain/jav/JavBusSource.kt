@@ -31,6 +31,16 @@ class JavBusSource(
   @Volatile private var cooldownKind = JavSourceFailureKind.NETWORK
   @Volatile private var cooldownMessage = "JavBus is temporarily unavailable"
 
+  init {
+    val savedUntil = preferences.javBusCooldownUntil.get()
+    if (savedUntil > System.currentTimeMillis()) {
+      cooldownUntil = savedUntil
+      cooldownKind = savedJavCooldownKind(preferences.javBusCooldownKind.get())
+      cooldownMessage = preferences.javBusCooldownMessage.get()
+        .ifBlank { "JavBus is temporarily unavailable" }
+    }
+  }
+
   suspend fun fetch(code: String): JavMetadata = withContext(Dispatchers.IO) {
     if (System.currentTimeMillis() < cooldownUntil) {
       throw JavSourceException(cooldownKind, cooldownMessage)
@@ -77,19 +87,37 @@ class JavBusSource(
         } else {
           NETWORK_COOLDOWN_MS
         }
-        cooldownKind = error.kind
-        cooldownMessage = error.message ?: "JavBus is temporarily unavailable"
-        cooldownUntil = System.currentTimeMillis() + cooldownMs
+        rememberCooldown(
+          kind = error.kind,
+          message = error.message ?: "JavBus is temporarily unavailable",
+          cooldownMs = cooldownMs,
+        )
       }
       throw error
     } catch (cancelled: CancellationException) {
       throw cancelled
     } catch (error: Exception) {
-      cooldownKind = JavSourceFailureKind.NETWORK
-      cooldownMessage = error.message ?: "JavBus request failed"
-      cooldownUntil = System.currentTimeMillis() + NETWORK_COOLDOWN_MS
-      throw JavSourceException(cooldownKind, cooldownMessage)
+      val message = error.message ?: "JavBus request failed"
+      rememberCooldown(
+        kind = JavSourceFailureKind.NETWORK,
+        message = message,
+        cooldownMs = NETWORK_COOLDOWN_MS,
+      )
+      throw JavSourceException(JavSourceFailureKind.NETWORK, message)
     }
+  }
+
+  private fun rememberCooldown(
+    kind: JavSourceFailureKind,
+    message: String,
+    cooldownMs: Long,
+  ) {
+    cooldownKind = kind
+    cooldownMessage = message
+    cooldownUntil = System.currentTimeMillis() + cooldownMs
+    preferences.javBusCooldownUntil.set(cooldownUntil)
+    preferences.javBusCooldownKind.set(kind.name)
+    preferences.javBusCooldownMessage.set(message)
   }
 
   fun coverHeaders(): Map<String, String> = buildMap {

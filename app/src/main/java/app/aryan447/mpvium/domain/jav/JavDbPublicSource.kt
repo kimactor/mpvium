@@ -8,6 +8,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -57,6 +59,19 @@ class JavDbPublicSource(
   private val cooldownUntil = mutableMapOf<String, Long>()
   @Volatile private var authCooldownUntil = 0L
 
+  init {
+    val now = System.currentTimeMillis()
+    val savedAuth = preferences.javDbApiAuthCooldownUntil.get()
+    if (savedAuth > now) authCooldownUntil = savedAuth
+
+    val savedHosts = runCatching {
+      json.decodeFromString<Map<String, Long>>(preferences.javDbApiHostCooldowns.get())
+    }.getOrDefault(emptyMap())
+    savedHosts.forEach { (host, until) ->
+      if (host in API_HOSTS && until > now) cooldownUntil[host] = until
+    }
+  }
+
   suspend fun fetch(code: String): JavMetadata = withContext(Dispatchers.IO) {
     if (System.currentTimeMillis() < authCooldownUntil) {
       throw JavSourceException(
@@ -78,7 +93,7 @@ class JavDbPublicSource(
   private suspend fun search(code: String): String {
     val data = request(
       path = "/api/v2/search",
-      query = mapOf("q" to searchQuery(code), "type" to "movie", "page" to "1"),
+      query = mapOf("q" to javDbSearchQuery(code), "type" to "movie", "page" to "1"),
     )
     val rows = data["movies"]?.jsonArray ?: throw parseError("JavDB search response did not contain movies")
     val ids = rows.mapNotNull { row ->
@@ -112,6 +127,7 @@ class JavDbPublicSource(
       when (payload["action"]?.jsonPrimitive?.contentOrNull) {
         "JWTVerificationError" -> {
           authCooldownUntil = System.currentTimeMillis() + AUTH_COOLDOWN_MS
+          preferences.javDbApiAuthCooldownUntil.set(authCooldownUntil)
           throw JavSourceException(
             JavSourceFailureKind.AUTH_REQUIRED,
             "JavDB now requires an account; the public API is unavailable",
@@ -159,14 +175,14 @@ class JavDbPublicSource(
               "JavDB does not have this movie",
             )
             response.code == 403 || response.code == 429 -> {
-              cooldownUntil[host] = System.currentTimeMillis() + BLOCK_COOLDOWN_MS
+              rememberHostCooldown(host, System.currentTimeMillis() + BLOCK_COOLDOWN_MS)
               lastError = JavSourceException(
                 JavSourceFailureKind.BLOCKED,
                 "JavDB API host returned HTTP ${response.code}",
               )
             }
             else -> {
-              cooldownUntil[host] = System.currentTimeMillis() + FAILURE_COOLDOWN_MS
+              rememberHostCooldown(host, System.currentTimeMillis() + FAILURE_COOLDOWN_MS)
               lastError = JavSourceException(
                 JavSourceFailureKind.NETWORK,
                 "JavDB API host returned HTTP ${response.code}",
@@ -178,7 +194,7 @@ class JavDbPublicSource(
         if (error.kind == JavSourceFailureKind.NOT_FOUND) throw error
         lastError = error
       } catch (error: Exception) {
-        cooldownUntil[host] = System.currentTimeMillis() + FAILURE_COOLDOWN_MS
+        rememberHostCooldown(host, System.currentTimeMillis() + FAILURE_COOLDOWN_MS)
         lastError = JavSourceException(
           JavSourceFailureKind.NETWORK,
           error.message ?: "JavDB request failed",
@@ -187,6 +203,15 @@ class JavDbPublicSource(
     }
 
     throw lastError ?: JavSourceException(JavSourceFailureKind.BLOCKED, "JavDB API is unavailable")
+  }
+
+  private fun rememberHostCooldown(host: String, until: Long) {
+    cooldownUntil[host] = until
+    val now = System.currentTimeMillis()
+    val active = cooldownUntil.filterValues { it > now }
+    runCatching {
+      preferences.javDbApiHostCooldowns.set(json.encodeToString(active))
+    }
   }
 
   private suspend fun awaitHostSlot(host: String) = lock.withLock {
@@ -282,7 +307,4 @@ class JavDbPublicSource(
 
   private fun parseError(message: String) =
     JavSourceException(JavSourceFailureKind.PARSE, message)
-
-  private fun searchQuery(code: String): String =
-    if (code.startsWith("FC2-PPV-")) code.removePrefix("FC2-PPV-") else code
 }

@@ -29,13 +29,13 @@ object JavSubtitleMatcher {
       "zhhans",
       "zhhant",
       "gbk",
-      "中字",
-      "中文",
-      "简体",
-      "繁体",
-      "简中",
-      "繁中",
+      "cn",
+      "ch",
+      "chinese",
     )
+
+  private val chineseNameWords = listOf("中文", "中字", "简体", "繁体", "繁體", "简中", "繁中")
+  private val kana = Regex("[\\u3040-\\u30ff\\uff66-\\uff9d]")
 
   fun isSubtitleFile(fileName: String): Boolean =
     fileName.substringAfterLast('.', "").lowercase(Locale.ROOT) in extensions
@@ -44,19 +44,27 @@ object JavSubtitleMatcher {
     if (!isSubtitleFile(fileName)) return false
     val stem = fileName.substringBeforeLast('.')
     if (JavCodeParser.parse(stem)?.code?.equals(code, ignoreCase = true) == true) return true
-    val normalizedCode = normalize(code)
-    return normalizedCode.isNotEmpty() && normalize(stem).contains(normalizedCode)
+    return codePattern(code)?.containsMatchIn(stem) == true
   }
 
   fun isChineseName(fileName: String): Boolean {
     val stem = fileName.substringBeforeLast('.').lowercase(Locale.ROOT)
-    if (stem.any { it in '\u4e00'..'\u9fff' }) return true
+    if (chineseNameWords.any { stem.contains(it) }) return true
+    if (kana.containsMatchIn(stem)) return false
     val tokens = stem.split(NON_ALPHANUMERIC)
     return tokens.any { it in chineseTokens }
   }
 
-  private fun normalize(value: String): String =
-    value.uppercase(Locale.ROOT).filter { it.isLetterOrDigit() }
+  /**
+   * Matches the code with separator tolerance, but requires a boundary before and after it so
+   * `ABP-123` cannot claim `ABP-1234.chs.srt` and `IBW-483` cannot claim `IBW-483z.srt`.
+   */
+  private fun codePattern(code: String): Regex? {
+    val parts = code.split(Regex("[^A-Za-z0-9]+")).filter { it.isNotEmpty() }
+    if (parts.isEmpty()) return null
+    val body = parts.joinToString("[-_ .]?") { Regex.escape(it) }
+    return Regex("(?<![A-Za-z0-9])$body(?![A-Za-z0-9])", RegexOption.IGNORE_CASE)
+  }
 
   private val NON_ALPHANUMERIC = Regex("[^a-z0-9]+")
 }

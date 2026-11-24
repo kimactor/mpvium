@@ -45,6 +45,37 @@ object JavCodeParser {
   private val heyzo = Regex(
     """(?i)(?<![A-Z0-9])HEYZO[-_ ]?(\d{3,4})(?![0-9])""",
   )
+
+  /**
+   * Labels whose own name contains digits. They cannot go through the generic
+   * letter-only patterns, and shorter labels must not eat the prefix of a longer one
+   * (`S2MCR-08` before `S2M`).
+   */
+  private val digitLabels = listOf("CW3D2DBD", "S2MBD", "S2MCR", "S2M", "T28", "T38")
+  private val digitLabel = Regex(
+    "(?i)(?<![A-Z0-9])(" +
+      digitLabels.sortedByDescending { it.length }.joinToString("|") +
+      ")[-_ .]?(\\d{2,5})(?![0-9])",
+  )
+  private val serialWidths = mapOf(
+    "CW3D2DBD" to 2,
+    "S2MBD" to 3,
+    "S2MCR" to 2,
+    "S2M" to 3,
+    "T28" to 3,
+    "T38" to 3,
+  )
+
+  private val kirari = Regex(
+    """(?i)(?<![A-Z0-9])(MKB?D-S)(\d{2,4})(?![0-9])""",
+  )
+
+  // IBW appends a z to this release family (IBW-483z); most other trailing letters
+  // are part markers and stay outside the code.
+  private val ibwSuffix = Regex(
+    """(?i)(?<![A-Z0-9])(IBW)[-_ ]?(\d{2,5})(Z)(?![A-Z0-9])""",
+  )
+
   private val tokyoHot = Regex(
     """(?i)(?<![A-Z0-9])N[-_ ]?(\d{3,4})(?![0-9])""",
   )
@@ -113,6 +144,40 @@ object JavCodeParser {
         code = "HEYZO-$digits",
         rawCode = match.value.trim(),
         kind = JavCodeKind.UNCENSORED,
+        confidence = 0.95f,
+      )
+    }
+
+    digitLabel.find(input)?.let { match ->
+      val label = match.groupValues[1].uppercase()
+      val digits = match.groupValues[2]
+      val width = serialWidths[label] ?: digits.length
+      return JavCodeMatch(
+        code = "$label-${digits.padStart(width, '0')}",
+        rawCode = match.value.trim(),
+        kind = if (label == "T28" || label == "T38") {
+          JavCodeKind.STANDARD
+        } else {
+          JavCodeKind.UNCENSORED
+        },
+        confidence = 0.95f,
+      )
+    }
+
+    kirari.find(input)?.let { match ->
+      return JavCodeMatch(
+        code = "${match.groupValues[1].uppercase()}${match.groupValues[2]}",
+        rawCode = match.value.trim(),
+        kind = JavCodeKind.UNCENSORED,
+        confidence = 0.95f,
+      )
+    }
+
+    ibwSuffix.find(input)?.let { match ->
+      return JavCodeMatch(
+        code = "IBW-${match.groupValues[2]}Z",
+        rawCode = match.value.trim(),
+        kind = JavCodeKind.STANDARD,
         confidence = 0.95f,
       )
     }
